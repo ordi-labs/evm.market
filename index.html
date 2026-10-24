@@ -169,19 +169,31 @@ async function connectWalletConnect(){
   setNotice("<strong>WalletConnect could not connect.</strong> "+safe(error?.message||error)+". Check the Reown Project ID, allowed domains and Cloudflare deployment.",true);
  }
 }
+function normalizeChainId(value){
+ const raw=String(value??"").trim().toLowerCase();
+ if(/^0x[0-9a-f]+$/.test(raw))return "0x"+BigInt(raw).toString(16);
+ if(/^\\d+$/.test(raw))return "0x"+BigInt(raw).toString(16);
+ return raw
+}
 async function switchToBase(provider){
  const baseChainId="0x2105";
- try{await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:baseChainId}]})}
- catch(error){
-  const code=error?.code??error?.data?.originalError?.code;
+ const current=normalizeChainId(await provider.request({method:"eth_chainId"}));
+ if(current===baseChainId)return baseChainId;
+ try{
+  await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:baseChainId}]})
+ }catch(error){
+  const code=Number(error?.code??error?.data?.originalError?.code??error?.cause?.code);
   if(code===4902){
    await provider.request({method:"wallet_addEthereumChain",params:[{chainId:baseChainId,chainName:"Base Mainnet",nativeCurrency:{name:"Ether",symbol:"ETH",decimals:18},rpcUrls:["https://mainnet.base.org"],blockExplorerUrls:["https://basescan.org"]}]});
    await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:baseChainId}]})
-  }else{throw error}
+  }else{
+   const detail=String(error?.message||"Wallet rejected the chain switch");
+   throw new Error("Could not switch wallet to Base (8453). "+detail+(code? " [wallet error "+code+"]":""))
+  }
  }
- const chain=await provider.request({method:"eth_chainId"});
- if(chain!==baseChainId)throw new Error("Wallet did not switch to Base (chain ID 8453).");
- return chain
+ const chain=normalizeChainId(await provider.request({method:"eth_chainId"}));
+ if(chain!==baseChainId)throw new Error("Wallet remained on chain "+String(chain)+" after the Base switch request. Switch to Base Mainnet (chain ID 8453) in the wallet and retry.");
+ return baseChainId
 }
 async function connect(provider=null,label="wallet"){
  if(!provider){await chooseWalletProvider();return}
@@ -192,11 +204,11 @@ async function connect(provider=null,label="wallet"){
   if(!account){walletOnBase=false;setNotice("<strong>Wallet not connected.</strong> No account was returned.",true);render();return}
   let chain=await provider.request({method:"eth_chainId"});
   let switchError=null;
-  if(chain!=="0x2105"){
+  if(normalizeChainId(chain)!=="0x2105"){
    try{await switchToBase(provider);chain=await provider.request({method:"eth_chainId"})}
    catch(error){switchError=error;chain=await provider.request({method:"eth_chainId"}).catch(()=> "0x0")}
   }
-  walletOnBase=chain==="0x2105";
+  walletOnBase=normalizeChainId(chain)==="0x2105";
   ownershipCache.clear();
   $("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";
   $("disconnect").hidden=!account;
@@ -220,7 +232,7 @@ async function connect(provider=null,label="wallet"){
  }catch(e){$("signatureGate").hidden=false;setNotice("<strong>Wallet verification failed.</strong> "+safe(e.message||e)+". Marketplace access remains locked; no transaction was sent.",true)}
 }
 function attachWalletListeners(provider){
- provider.on?.("accountsChanged",a=>{account=a[0]||null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=false;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=chain==="0x2105";render()}).catch(()=>render())}else{activeProvider=null;render()}});
+ provider.on?.("accountsChanged",a=>{account=a[0]||null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=false;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=normalizeChainId(chain)==="0x2105";render()}).catch(()=>render())}else{activeProvider=null;render()}});
  provider.on?.("chainChanged",()=>location.reload());
 }
 $("connect").addEventListener("click",()=>connect());
