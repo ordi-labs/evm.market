@@ -35,7 +35,9 @@ function getRpcConfig(env) {
 function validAddress(value) { return typeof value === "string" && /^0x[0-9a-f]{40}$/i.test(value); }
 function validateParams(method, params) {
   if (!Array.isArray(params)) throw new Error("JSON-RPC params must be an array.");
-  if (method === "eth_sendRawTransaction") {\n    if (params.length !== 1 || typeof params[0] !== "string" || !/^0x(?:[0-9a-f]{2}){50,}$/i.test(params[0]) || params[0].length > 200000) throw new Error("A valid signed raw transaction is required.");\n  } else if (method === "eth_call") {
+  if (method === "eth_sendRawTransaction") {
+    if (params.length !== 1 || typeof params[0] !== "string" || !/^0x(?:[0-9a-f]{2}){50,}$/i.test(params[0]) || params[0].length > 200000) throw new Error("A valid signed raw transaction is required.");
+  } else if (method === "eth_call") {
     if (!params[0] || typeof params[0] !== "object" || !validAddress(params[0].to)) throw new Error("eth_call requires a valid target address.");
     if (params[0].data != null && (typeof params[0].data !== "string" || !/^0x[0-9a-f]*$/i.test(params[0].data) || params[0].data.length > 131074)) throw new Error("Invalid eth_call data.");
     if (params.length > 2) throw new Error("Unsupported eth_call parameters.");
@@ -58,6 +60,12 @@ export async function onRequestPost({request, env}) {
   const rpc = getRpcConfig(env);
   if (!rpc) return json({error:"Base-compatible RPC is not configured. Set ETHEREUM_API to an HTTPS Base mainnet JSON-RPC endpoint, or configure ALCHEMY_API_KEY / ALCHEMY_API."}, 503);
   try {
+    // Only broadcast after confirming that the configured endpoint is Base mainnet.
+    if (method === "eth_sendRawTransaction") {
+      const chainResponse = await fetch(rpc.url, {method:"POST",headers:{"content-type":"application/json","accept":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:body.id,method:"eth_chainId",params:[]})});
+      const chainPayload = await chainResponse.json().catch(() => null);
+      if (!chainResponse.ok || String(chainPayload?.result || "").toLowerCase() !== "0x2105") return json({error:"Transaction broadcast blocked: ETHEREUM_API is not responding as Base mainnet (chain ID 8453)."}, 409);
+    }
     const upstream = await fetch(rpc.url, {
       method:"POST", headers:{"content-type":"application/json","accept":"application/json"},
       body:JSON.stringify({jsonrpc:"2.0",id:body.id,method,params})
