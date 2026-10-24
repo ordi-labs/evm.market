@@ -126,6 +126,23 @@ function normalizeOpenSeaNft(n, contract) {
   };
 }
 
+function mergeArtworkFromOpenSea(alchemyNfts, openSeaNfts) {
+  const byId = new Map(openSeaNfts.map(n => [String(n.identifier || n.token_id || ""), n]));
+  return alchemyNfts.map(n => {
+    const id = String(n.identifier || n.token_id || "");
+    const fallback = byId.get(id);
+    if (n.image_url || !fallback) return n;
+    const image = fallback.image_url || fallback.display_image_url || fallback.metadata?.image || "";
+    if (!image) return n;
+    return {
+      ...n,
+      image_url: image,
+      display_image_url: image,
+      metadata: {...(n.metadata || {}), image}
+    };
+  });
+}
+
 async function fetchOpenSea({contract, limit, cursor, apiKey, forceRefresh}) {
   const endpoint = new URL("https://api.opensea.io/api/v2/chain/base/contract/" + contract + "/nfts");
   endpoint.searchParams.set("limit", String(limit));
@@ -190,7 +207,31 @@ export async function onRequestGet({request, env}) {
       else {
         const data = await response.json();
         const nfts = Array.isArray(data.nfts) ? await Promise.all(data.nfts.map(async n => normalizeAlchemyNft(await resolveAlchemyMetadata(n), contract))) : [];
-        if (nfts.length && (contract !== NODEMONKES || nfts.every(n => Boolean(n.image_url)))) {
+        if (nfts.length && nfts.every(n => Boolean(n.image_url))) {
+          return json({
+            nfts,
+            next:typeof data.pageKey === "string" ? data.pageKey : null,
+            source:"alchemy",
+            refreshed:forceRefresh,
+            fetchedAt:new Date().toISOString()
+          }, 200, forceRefresh);
+        }
+        if (nfts.length && contract === NODEMONKES && openSeaKey) {
+          const fallback = await fetchOpenSea({contract, limit, cursor:null, apiKey:openSeaKey, forceRefresh});
+          if (fallback.ok && fallback.nfts.length) {
+            const merged = mergeArtworkFromOpenSea(nfts, fallback.nfts);
+            if (merged.some(n => Boolean(n.image_url))) {
+              return json({
+                nfts:merged,
+                next:typeof data.pageKey === "string" ? data.pageKey : encodeOpenSeaCursor(fallback.next),
+                source:"alchemy+opensea",
+                refreshed:forceRefresh,
+                fetchedAt:new Date().toISOString()
+              }, 200, forceRefresh);
+            }
+          }
+        }
+        if (nfts.length && contract === PUNKS) {
           return json({
             nfts,
             next:typeof data.pageKey === "string" ? data.pageKey : null,
