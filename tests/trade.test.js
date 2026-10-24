@@ -94,7 +94,8 @@ test("fails closed when the server-side OpenSea API key is missing", async () =>
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /not configured/);
 });
-\n
+
+
 test("validates listing-action requests before contacting OpenSea", async () => {
   const body = {
     address: "0x1111111111111111111111111111111111111111",
