@@ -66,6 +66,30 @@ test("rejects fulfillment requests for a non-Base order", async () => {
   assert.match((await response.json()).error, /Only Base mainnet/);
 });
 
+
+test("includes Base chain at top level and on the order for fulfillment data", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith("/api/v2/listings/fulfillment_data"), "expected OpenSea listing fulfillment endpoint");
+    const payload = JSON.parse(init.body);
+    assert.equal(payload.chain, "base");
+    assert.equal(payload.listing.chain, "base");
+    return new Response(JSON.stringify({ fulfillment_data: { transaction: { to: "0x1111111111111111111111111111111111111111", input_data: "0x" } } }), {
+      status: 200, headers: { "content-type": "application/json" }
+    });
+  };
+  try {
+    const response = await onRequest({
+      request: request("fulfill-listing", fulfillmentBody()),
+      env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).fulfillment_data.transaction.input_data, "0x");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("rejects a mismatched Seaport protocol address", async () => {
   const body = fulfillmentBody({ listing: { ...fulfillmentBody().listing, protocol_address: "0x3333333333333333333333333333333333333333" } });
   const response = await onRequest({
