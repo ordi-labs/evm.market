@@ -11,7 +11,7 @@ Premium Base NFT collection explorer for Base Punks and NodeMonkes. This reposit
 - Production URL: https://evm-market-premium.pages.dev
 - Source: ordi-labs/evm.market, branch main
 - Build command: none; output directory: repository root (.)
-- Configure ALCHEMY_API (or ALCHEMY_API_KEY / ETHEREUM_API) as a Cloudflare Pages secret in production and preview. Both collections use Alchemy's Base NFT API as the primary source.
+- Configure `ALCHEMY_API_KEY` (or `ALCHEMY_API` / `ETHEREUM_API`) as a Cloudflare Pages secret in production and preview. These values are used server-side for Alchemy NFT data and the read-only Base RPC proxy at `/api/rpc`; the key is never sent to the browser.
 - OPENSEA_API / OPENSEA_API_KEY must remain a Cloudflare Pages secret and may be used for NFT metadata and the server-side trade API. Never commit API keys.
 
 ## Functionality
@@ -23,4 +23,4 @@ A server-side foundation is being prepared in `functions/api/trade.js`:
 - Restricts trade API calls to Base (`base`) and the two allowlisted collection contracts.
 - Supports reading listing/offer data and submitting an already wallet-signed listing/offer payload after basic structure, signature-format, contract, and token-ID validation.
 
-**This is not yet a complete native marketplace UI.** The current Buy/Sell/List/Make Offer buttons remain external links until the frontend can safely create and review EIP-712 Seaport orders, display payment/fee/expiry/recipient details, execute fulfillment transactions through the connected wallet, handle cancellation and approval scope, and pass end-to-end tests. Do not treat this branch as production-enabled trading. Configure `OPENSEA_API` or `OPENSEA_API_KEY` and `BASE_SEAPORT_ADDRESS` in Cloudflare Pages secrets before exercising write endpoints. `BASE_SEAPORT_ADDRESS` must be the verified Seaport contract address for Base; the route fails closed if it is missing.
+**Native trading is partially implemented and must not be considered production-ready until live Base tests pass.** Buy prepares an OpenSea Seaport fulfillment transaction and asks the connected wallet to send it; listing uses OpenSea listing actions and wallet signing/approval. Make Offer remains a validated draft only. The `/api/rpc` endpoint uses the configured Alchemy Base API for read-only ownership checks and transaction receipt confirmation. It explicitly blocks transaction submission methods: the user wallet must approve and submit every transaction. Configure `OPENSEA_API` or `OPENSEA_API_KEY` and `BASE_SEAPORT_ADDRESS` as Cloudflare Pages secrets before exercising write endpoints. `BASE_SEAPORT_ADDRESS` must be the verified Seaport contract address for Base; the route fails closed if it is missing.
