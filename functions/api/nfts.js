@@ -165,16 +165,21 @@ export async function onRequestGet({request, env}) {
       else {
         const data = await response.json();
         const nfts = Array.isArray(data.nfts) ? data.nfts.map(n => normalizeAlchemyNft(n, contract)) : [];
-        if (nfts.length) {
+        const imageCount = nfts.filter(n => n.image_url).length;
+        // Some collections can be indexed by Alchemy before their image metadata
+        // is hydrated. Do not treat a non-empty, image-less page as a successful
+        // result: let the OpenSea fallback provide artwork for the collection grid.
+        if (nfts.length && imageCount > 0) {
           return json({
             nfts,
             next:typeof data.pageKey === "string" ? data.pageKey : null,
             source:"alchemy",
+            imageFallback:"per-token-detail",
             refreshed:forceRefresh,
             fetchedAt:new Date().toISOString()
           }, 200, forceRefresh);
         }
-        alchemyError = "empty";
+        alchemyError = nfts.length ? "no-images" : "empty";
       }
     } catch {
       alchemyError = "network";
