@@ -76,23 +76,43 @@ export async function onRequestGet({request, env}) {
     try { data = await response.json(); }
     catch { return json({error:"Alchemy returned an invalid response."}, 502, forceRefresh); }
 
+    const imageUrl = value => {
+      if (typeof value !== "string") return "";
+      const trimmed = value.trim();
+      if (!trimmed) return "";
+      if (trimmed.startsWith("ipfs://")) return "https://ipfs.io/ipfs/" + trimmed.slice(7).replace(/^ipfs\//, "");
+      if (trimmed.startsWith("ar://")) return "https://arweave.net/" + trimmed.slice(5);
+      return trimmed;
+    };
     const nfts = Array.isArray(data.nfts) ? data.nfts.map(n => {
-      const tokenId = String(n.tokenId ?? "");
+      const tokenId = String(n.tokenId ?? n.token_id ?? "");
       const raw = n.raw || {};
-      const metadata = raw.metadata || {};
-      const image = n.image || {};
+      const metadata = raw.metadata || n.metadata || {};
+      const image = n.image && typeof n.image === "object" ? n.image : {};
+      const media = Array.isArray(n.media) ? n.media[0] || {} : {};
+      // Alchemy versions/providers vary: image can be an object, a URL string,
+      // or live under media[].gateway / raw.metadata.image.
+      const candidates = [
+        image.cachedUrl, image.thumbnailUrl, image.originalUrl, image.pngUrl,
+        typeof n.image === "string" ? n.image : "",
+        media.gateway, media.raw, media.thumbnail, media.uri,
+        n.image_url, n.display_image_url, metadata.image, metadata.image_url,
+        metadata.imageURI, metadata.imageUri, metadata.properties?.image
+      ];
+      const normalizedImage = candidates.map(imageUrl).find(Boolean) || "";
+      const attributes = metadata.attributes || metadata.properties?.attributes || n.attributes || [];
       return {
         identifier: tokenId,
         token_id: tokenId,
         name: n.name || metadata.name || "",
         description: n.description || metadata.description || "",
-        image_url: image.cachedUrl || image.thumbnailUrl || image.originalUrl || metadata.image || metadata.image_url || "",
-        display_image_url: image.cachedUrl || image.thumbnailUrl || image.originalUrl || metadata.image || metadata.image_url || "",
+        image_url: normalizedImage,
+        display_image_url: normalizedImage,
         metadata: {
           name: metadata.name || n.name || "",
           description: metadata.description || n.description || "",
-          image: metadata.image || metadata.image_url || "",
-          attributes: Array.isArray(metadata.attributes) ? metadata.attributes : []
+          image: normalizedImage,
+          attributes: Array.isArray(attributes) ? attributes : []
         },
         opensea_url: tokenId
           ? "https://og.rarible.com/token/base/" + contract + ":" + encodeURIComponent(tokenId)
