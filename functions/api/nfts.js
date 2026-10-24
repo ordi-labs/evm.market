@@ -1,13 +1,13 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const ALLOWED = new Set([PUNKS, NODEMONKES]);
-const json = (data, status = 200) => new Response(JSON.stringify(data), {status, headers: {"content-type":"application/json; charset=utf-8","cache-control":"public, max-age=20, s-maxage=60","x-content-type-options":"nosniff","access-control-allow-origin":"*"}});
+const json = (data, status = 200, forceRefresh = false) => new Response(JSON.stringify(data), {status, headers: {"content-type":"application/json; charset=utf-8","cache-control":forceRefresh ? "no-store, no-cache, must-revalidate, max-age=0" : "public, max-age=20, s-maxage=60","pragma":forceRefresh ? "no-cache" : "","x-content-type-options":"nosniff","access-control-allow-origin":"*"}});
 export async function onRequestGet({request, env}) {
   const url = new URL(request.url);
   const contract = (url.searchParams.get("contract") || "").toLowerCase();
   if (!ALLOWED.has(contract)) return json({error:"Unsupported collection contract."}, 400);
   const limit = Math.min(20, Math.max(1, Number.parseInt(url.searchParams.get("limit") || "20", 10) || 20));
-  const next = url.searchParams.get("next");
+  const next = url.searchParams.get("next");\n  const forceRefresh = url.searchParams.get("refresh") === "1";
   if (next && (next.length > 2048 || !/^[A-Za-z0-9_.~+/=-]+$/.test(next))) return json({error:"Invalid pagination cursor."}, 400);
 
   // NodeMonkes uses Alchemy NFT API on Base; Base Punks keeps its existing OpenSea path.
@@ -29,7 +29,7 @@ export async function onRequestGet({request, env}) {
     }
     const upstream = new URL("https://base-mainnet.g.alchemy.com/nft/v3/" + encodeURIComponent(alchemyKey) + "/getNFTsForContract");
     upstream.searchParams.set("contractAddress", contract);
-    upstream.searchParams.set("withMetadata", "true");
+    upstream.searchParams.set("withMetadata", "true");\n    // Refresh requests bypass our edge/browser cache; keep provider query parameters supported by Alchemy.\n    if (forceRefresh) upstream.searchParams.set("startToken", "0");
     upstream.searchParams.set("limit", String(limit));
     if (next) upstream.searchParams.set("pageKey", next);
     let response;
@@ -46,7 +46,7 @@ export async function onRequestGet({request, env}) {
       image_url: n.image?.cachedUrl || n.image?.thumbnailUrl || n.image?.originalUrl || n.raw?.metadata?.image || "",
       opensea_url: n.tokenId != null ? "https://og.rarible.com/token/base/" + contract + ":" + encodeURIComponent(String(n.tokenId)) : "https://og.rarible.com/collection/base/" + contract + "/items"
     })) : [];
-    return json({nfts, next:typeof data.pageKey === "string" ? data.pageKey : null, source:"alchemy"});
+    return json({nfts, next:typeof data.pageKey === "string" ? data.pageKey : null, source:"alchemy", refreshed:forceRefresh, fetchedAt:new Date().toISOString()}, 200, forceRefresh);
   }
 
   const openSeaKey = env.OPENSEA_API || env.OPENSEA_API_KEY;
@@ -60,5 +60,5 @@ export async function onRequestGet({request, env}) {
   if (!response.ok) return json({error:response.status === 429 ? "OpenSea rate limit reached. Please retry shortly." : "OpenSea API request failed.", upstreamStatus:response.status}, response.status === 429 ? 429 : 502);
   let data;
   try { data = await response.json(); } catch { return json({error:"OpenSea returned an invalid response."}, 502); }
-  return json({nfts:Array.isArray(data.nfts)?data.nfts:[],next:typeof data.next==="string"?data.next:null,source:"opensea"});
+  return json({nfts:Array.isArray(data.nfts)?data.nfts:[],next:typeof data.next==="string"?data.next:null,source:"opensea",refreshed:forceRefresh,fetchedAt:new Date().toISOString()}, 200, forceRefresh);
 }
