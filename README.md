@@ -11,10 +11,16 @@ Premium Base NFT collection explorer for Base Punks and NodeMonkes. This reposit
 - Production URL: https://evm-market-premium.pages.dev
 - Source: ordi-labs/evm.market, branch main
 - Build command: none; output directory: repository root (.)
-- Configure ALCHEMY_API (or ALCHEMY_API_KEY / ETHEREUM_API) as a Cloudflare Pages secret in production and preview. Both collections now use Alchemy's Base NFT API as the primary source.
-- OPENSEA_API / OPENSEA_API_KEY remains server-side and may be used as a fallback for individual NFT detail requests. Never commit API keys.
+- Configure ALCHEMY_API (or ALCHEMY_API_KEY / ETHEREUM_API) as a Cloudflare Pages secret in production and preview. Both collections use Alchemy's Base NFT API as the primary source.
+- OPENSEA_API / OPENSEA_API_KEY must remain a Cloudflare Pages secret and may be used for NFT metadata and the server-side trade API. Never commit API keys.
 
 ## Functionality
-Responsive collection browsing, contract allowlisting, search, cursor pagination, external marketplace links, and injected EVM wallet connection/Base network switching.
+Responsive collection browsing, contract allowlisting, search, cursor pagination, injected EVM wallet connection, and Base network switching.
 
-**Trading scope:** The current app does not create or fulfill listings, offers, or purchases internally. Item links remain external marketplace links. Native trading requires a tested Seaport integration for listing, signatures, offers, fulfillment, and cancellation.
+## Seaport integration status
+A server-side foundation is being prepared in `functions/api/trade.js`:
+- Uses the OpenSea API from Cloudflare Pages Functions, keeping the API key out of browser code.
+- Restricts trade API calls to Base (`base`) and the two allowlisted collection contracts.
+- Supports reading listing/offer data and submitting an already wallet-signed listing/offer payload after basic structure, signature-format, contract, and token-ID validation.
+
+**This is not yet a complete native marketplace UI.** The current Buy/Sell/List/Make Offer buttons remain external links until the frontend can safely create and review EIP-712 Seaport orders, display payment/fee/expiry/recipient details, execute fulfillment transactions through the connected wallet, handle cancellation and approval scope, and pass end-to-end tests. Do not treat this branch as production-enabled trading. Configure `OPENSEA_API` or `OPENSEA_API_KEY` and `BASE_SEAPORT_ADDRESS` in Cloudflare Pages secrets before exercising write endpoints. `BASE_SEAPORT_ADDRESS` must be the verified Seaport contract address for Base; the route fails closed if it is missing.
