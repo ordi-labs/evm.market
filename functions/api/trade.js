@@ -140,7 +140,8 @@ function validateListingActionsRequest(body, asset) {
     ...(body.taker && /^0x[0-9a-f]{40}$/i.test(String(body.taker)) ? { taker: String(body.taker) } : {})
   };
 }
-\nexport async function onRequest({ request, env }) {
+
+export async function onRequest({ request, env }) {
   if (request.method !== "GET" && request.method !== "POST") {
     return json({ error: "Method not allowed." }, 405, { allow: "GET, POST" });
   }
