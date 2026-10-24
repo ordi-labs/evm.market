@@ -132,7 +132,7 @@ function validateListingActionsRequest(body, asset) {
   const currency = String(price.currency || "").trim();
   const amount = String(price.amount ?? "").trim();
   if (!/^(ETH|WETH)$/i.test(currency)) throw new Error("Only ETH or WETH listing currency is currently supported.");
-  if (!/^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$/.test(amount) || !/[1-9]/.test(amount)) throw new Error("Listing price must be a positive decimal amount.");
+  if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(amount) || !/[1-9]/.test(amount)) throw new Error("Listing price must be a positive decimal amount.");
   return {
     address,
     items: [{ nft_id: expectedNftId, quantity: 1, price: { currency: currency.toUpperCase(), amount } }],
