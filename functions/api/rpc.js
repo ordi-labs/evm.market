@@ -8,10 +8,10 @@ function sameOrigin(request) {
 function getAlchemyKey(env) {
   const configured = String(env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API || "").trim();
   if (!configured) return "";
-  if (!/^https?:\\/\\//i.test(configured)) return configured;
+  if (!/^https?:\/\//i.test(configured)) return configured;
   try {
     const url = new URL(configured);
-    if (!/\\.alchemy\\.com$/i.test(url.hostname)) return "";
+    if (!/\.alchemy\.com$/i.test(url.hostname)) return "";
     const parts = url.pathname.split("/").filter(Boolean);
     const v = parts.findIndex(part => part === "v2");
     return v >= 0 && parts[v + 1] ? parts[v + 1] : "";
