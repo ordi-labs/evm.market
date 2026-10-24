@@ -22,7 +22,7 @@
 <div class="modal-backdrop" id="detailBackdrop" role="dialog" aria-modal="true" aria-labelledby="detailTitle"><section class="nft-modal"><div class="modal-head"><div><div class="section-kicker">Live NFT data</div><h2 id="detailTitle">Loading NFT…</h2></div><button id="closeDetails" aria-label="Close NFT details">✕</button></div><div id="detailContent"><div class="empty"><span class="spinner"></span>Loading verified metadata…</div></div></section></div><div class="pagination"><button id="prev" disabled>← Previous</button><span id="page">Page 1</span><button id="next" disabled>Next →</button></div></section>
 </main>
 <footer class="wrap footer"><div><a class="logo" href="#">evm<em>.</em>market</a><div style="margin-top:7px">A home for onchain culture.</div></div><div class="security"><span style="color:var(--lime)">◆</span> Your keys stay in your wallet. Never share your recovery phrase.</div><div><a href="/security.html">Security &amp; wallet safety</a> &nbsp;·&nbsp; <a href="https://basescan.org" target="_blank" rel="noopener noreferrer">Base Explorer ↗</a> &nbsp;·&nbsp; <a href="https://opensea.io" target="_blank" rel="noopener noreferrer">OpenSea ↗</a><div style="margin-top:7px">© <span id="year"></span> evm.market</div></div></footer>
-<div id="signatureGate" class="signature-gate" role="dialog" aria-modal="true" aria-labelledby="signatureGateTitle"><section class="signature-gate-panel"><div class="section-kicker">Wallet verification · Base</div><h2 id="signatureGateTitle">Sign in with your wallet</h2><p>To enter evm.market, connect your wallet and sign a one-time proof-of-control message for this browser session.</p><div class="gate-warning"><strong>Message signature only.</strong> This is not a transaction and does not grant token/NFT approvals. Never sign a transaction or share your recovery phrase to access this site.</div><button id="signatureGateContinue" class="primary" type="button">Open wallet and sign message ↗</button></section></div><div id="walletChooser" class="wallet-chooser" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="walletChooserTitle"><div class="wallet-chooser-panel"><div class="wallet-chooser-head"><h2 id="walletChooserTitle">Connect a wallet</h2><button id="walletChooserClose" type="button" aria-label="Close wallet chooser">Close</button></div><p>Click the button to open your detected wallet’s own connection and message-signature prompt. On mobile, open this page inside your wallet app. External mobile wallet discovery from a normal browser requires WalletConnect/Reown. This sign-in requests a message signature only; it does not authorize transfers.</p><div id="walletOptions" class="wallet-options"></div></div></div>
+<div id="signatureGate" class="signature-gate" role="dialog" aria-modal="true" aria-labelledby="signatureGateTitle"><section class="signature-gate-panel"><div class="section-kicker">Wallet verification · Base</div><h2 id="signatureGateTitle">Sign in with your wallet</h2><p>To enter evm.market, connect your wallet and sign a one-time proof-of-control message for this browser session.</p><div class="gate-warning"><strong>Message signature only.</strong> This is not a transaction and does not grant token/NFT approvals. Never sign a transaction or share your recovery phrase to access this site.</div><button id="signatureGateContinue" class="primary" type="button">Choose wallet and sign message ↗</button></section></div><div id="walletChooser" class="wallet-chooser" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="walletChooserTitle"><div class="wallet-chooser-panel"><div class="wallet-chooser-head"><h2 id="walletChooserTitle">Connect a wallet</h2><button id="walletChooserClose" type="button" aria-label="Close wallet chooser">Close</button></div><p>Choose one of the wallets detected by this browser. The selected wallet will present its own connection and message-signature prompt. On mobile, opening a wallet from a normal browser requires WalletConnect/Reown; alternatively, open this page inside your wallet app. This sign-in requests a message signature only; it does not authorize transfers.</p><div id="walletOptions" class="wallet-options"></div></div></div>
 <script>
 const COLLECTIONS={punks:{name:"Base Punks",contract:"0xb9110ba3266f4983193c0d5f55c792a94368af28",slug:"base-punks"},nodemonkes:{name:"NodeMonkes",contract:"0x095b6ae2102094be8b5f06fac27275ddb9a8c70a",slug:"nodemonkes"}};
 const PAGE_SIZE=20;let selected="punks",page=1,items=[],nextCursor=null,cursors={1:null},account=null,walletOnBase=false,accessVerified=false,verifiedAccount=null;const ownershipCache=new Map();
@@ -108,8 +108,6 @@ window.addEventListener("eip6963:announceProvider",event=>{
 function providerLabel(info){const raw=String(info?.name||"");const lower=raw.toLowerCase();if(lower.includes("metamask")||info?.rdns==="io.metamask")return "MetaMask";if(lower.includes("trust")||info?.rdns==="com.trustwallet.app")return "Trust Wallet";if(lower.includes("uniswap")||info?.rdns==="wallet.uniswap.org")return "Uniswap Wallet";if(lower.includes("base")||info?.rdns==="com.coinbase.wallet")return "Base Wallet";return String(raw||"Browser wallet").slice(0,80)}
 function closeWalletChooser(){$("walletChooser").classList.remove("open");$("walletChooser").setAttribute("aria-hidden","true")}
 async function chooseWalletProvider(){
- // Ask injected wallets to announce themselves, but do not open an in-page wallet picker.
- // The injected provider handles its own external extension/app approval window.
  discoveredWallets.clear();
  if(window.ethereum?.providers?.length){
   window.ethereum.providers.forEach((provider,index)=>discoveredWallets.set("legacy-"+index,{provider,info:{uuid:"legacy-"+index,name:provider.isMetaMask?"MetaMask":provider.isCoinbaseWallet?"Base Wallet":provider.isBraveWallet?"Brave Wallet":provider.isRabby?"Rabby":"Detected wallet"}}));
@@ -118,20 +116,53 @@ async function chooseWalletProvider(){
   discoveredWallets.set("legacy-default",{provider:window.ethereum,info:{uuid:"legacy-default",name:window.ethereum.isMetaMask?"MetaMask":window.ethereum.isCoinbaseWallet?"Base Wallet":window.ethereum.isBraveWallet?"Brave Wallet":"Detected browser wallet"}});
  }
  window.dispatchEvent(new Event("eip6963:requestProvider"));
- await new Promise(resolve=>setTimeout(resolve,250));
- // Prefer the browser's active injected provider so clicking Sign immediately opens
- // the wallet's own connect/sign prompt instead of an in-site modal.
- let selectedProvider=window.ethereum||null;
- let selectedInfo={name:selectedProvider?.isMetaMask?"MetaMask":selectedProvider?.isCoinbaseWallet?"Base Wallet":selectedProvider?.isBraveWallet?"Brave Wallet":"Browser wallet"};
- if(!selectedProvider){
-  const wallets=[...discoveredWallets.values()];
-  if(wallets.length===1){selectedProvider=wallets[0].provider;selectedInfo=wallets[0].info}
+ await new Promise(resolve=>setTimeout(resolve,350));
+ const list=$("walletOptions");list.replaceChildren();
+ const wallets=[...discoveredWallets.values()];
+ if(!wallets.length){
+  const msg=document.createElement("p");msg.className="wallet-empty";msg.textContent="No compatible browser wallets were detected. Enable the wallet extensions you want to use, or open this site in a wallet app. External mobile-wallet selection from a normal browser requires WalletConnect/Reown.";list.append(msg);
+ }else{
+  wallets.forEach(({provider,info})=>{
+   const button=document.createElement("button");button.type="button";button.className="wallet-option";
+   const icon=document.createElement("span");icon.className="wallet-option-icon";
+   if(info.icon&&String(info.icon).startsWith("data:image/")){const img=document.createElement("img");img.src=info.icon;img.alt="";icon.append(img)}else icon.textContent="◇";
+   const name=document.createElement("span");name.className="wallet-option-name";name.textContent=providerLabel(info);
+   const sub=document.createElement("small");sub.textContent="Open this wallet to connect and sign";
+   const copy=document.createElement("span");copy.className="wallet-option-copy";copy.append(name,sub);button.append(icon,copy);
+   button.addEventListener("click",()=>{closeWalletChooser();connect(provider,providerLabel(info))});
+   list.append(button);
+  });
  }
- if(selectedProvider){
-  await connect(selectedProvider,providerLabel(selectedInfo));
-  return;
+ const wcButton=document.createElement("button");wcButton.type="button";wcButton.className="wallet-option";
+ const wcIcon=document.createElement("span");wcIcon.className="wallet-option-icon";wcIcon.textContent="↗";
+ const wcName=document.createElement("span");wcName.className="wallet-option-name";wcName.textContent="WalletConnect · Mobile wallets";
+ const wcSub=document.createElement("small");wcSub.textContent="Scan QR or choose a compatible wallet in Reown";
+ const wcCopy=document.createElement("span");wcCopy.className="wallet-option-copy";wcCopy.append(wcName,wcSub);wcButton.append(wcIcon,wcCopy);wcButton.addEventListener("click",connectWalletConnect);list.append(wcButton);
+ $("walletChooser").classList.add("open");$("walletChooser").setAttribute("aria-hidden","false");
+}
+let walletConnectProvider=null;
+async function connectWalletConnect(){
+ try{
+  setNotice("<strong>Opening WalletConnect…</strong> Choose a compatible wallet in the Reown modal. You will still review the message-signature request in your wallet.");
+  if(!walletConnectProvider){
+   const module=await import("https://esm.sh/@walletconnect/ethereum-provider@2.17.0?bundle");
+   const EthereumProvider=module.EthereumProvider||module.default?.EthereumProvider;
+   if(!EthereumProvider)throw new Error("WalletConnect provider module did not load.");
+   walletConnectProvider=await EthereumProvider.init({
+    projectId:"f981fcdc036a0a273c655b90030221e4",
+    chains:[8453],
+    showQrModal:true,
+    methods:["eth_sendTransaction","personal_sign","eth_signTypedData","eth_signTypedData_v4"],
+    events:["chainChanged","accountsChanged"],
+    metadata:{name:"evm.market",description:"NFT marketplace for Base",url:location.origin,icons:[location.origin+"/icons/icon.svg"]}
+   });
+  }
+  await walletConnectProvider.connect();
+  closeWalletChooser();
+  await connect(walletConnectProvider,"WalletConnect");
+ }catch(error){
+  setNotice("<strong>WalletConnect could not connect.</strong> "+safe(error?.message||error)+". Check the Reown Project ID, allowed domains and Cloudflare deployment.",true);
  }
- setNotice("<strong>No browser wallet is available.</strong> Open evm.market inside your wallet app or install/enable a compatible wallet extension. To open a separate mobile wallet app from a normal mobile browser, this site needs WalletConnect/Reown integration; it cannot launch an arbitrary wallet app on its own.",true);
 }
 async function switchToBase(provider){
  const baseChainId="0x2105";
