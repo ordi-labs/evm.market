@@ -1,6 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">evm.market app icon</title>
   <rect width="512" height="512" rx="112" fill="#090b0f"/>
-  <rect x="28" y="28" width="456" height="456" rx="92" fill="#11151d" stroke="#c4fa68" stroke-opacity=".55" stroke-width="3"/>
-  <path d="M112 156h288v48H160v48h192v48H160v48h240v48H112z" fill="#c4fa68"/>
-  <circle cx="376" cy="136" r="25" fill="#8baeff"/>
+  <rect x="22" y="22" width="468" height="468" rx="100" fill="#11151d" stroke="#c4fa68" stroke-opacity=".72" stroke-width="5"/>
+  <path d="M100 176c0-39 27-66 67-66 39 0 64 27 64 68v20h-91c4 20 17 30 36 30 15 0 28-5 39-15l14 28c-15 14-34 21-56 21-44 0-73-29-73-72v-14zm40-7h53c-2-17-11-26-26-26-14 0-23 9-27 26z" fill="#f5f6f8"/>
+  <path d="M245 113h42l29 92 29-92h42l-52 143h-39z" fill="#c4fa68"/>
+  <circle cx="401" cy="112" r="20" fill="#8baeff"/>
+  <path d="M102 301h308v43H102z" fill="#c4fa68"/>
+  <text x="256" y="405" fill="#f5f6f8" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="800" text-anchor="middle" letter-spacing="-2">market</text>
+  <text x="256" y="456" fill="#9ca6b7" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="600" text-anchor="middle" letter-spacing="6">ON BASE</text>
 </svg>
