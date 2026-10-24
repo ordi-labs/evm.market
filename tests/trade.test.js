@@ -94,3 +94,40 @@ test("fails closed when the server-side OpenSea API key is missing", async () =>
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /not configured/);
 });
+\n
+test("validates listing-action requests before contacting OpenSea", async () => {
+  const body = {
+    address: "0x1111111111111111111111111111111111111111",
+    items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0.05" } }]
+  };
+  const response = await onRequest({
+    request: request("listing-actions", body),
+    env: { OPENSEA_API: "test-key" }
+  });
+  // A valid request reaches the provider; with this test's default fetch, the provider
+  // response may fail, but it must not be rejected by local request validation.
+  assert.notEqual(response.status, 400);
+});
+
+test("rejects listing-action requests for a mismatched NFT", async () => {
+  const response = await onRequest({
+    request: request("listing-actions", {
+      address: "0x1111111111111111111111111111111111111111",
+      items: [{ nft_id: "base/" + CONTRACT + "/2", quantity: 1, price: { currency: "ETH", amount: "0.05" } }]
+    }),
+    env: { OPENSEA_API: "test-key" }
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /must match/);
+});
+
+test("rejects non-positive listing prices", async () => {
+  const response = await onRequest({
+    request: request("listing-actions", {
+      address: "0x1111111111111111111111111111111111111111",
+      items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0" } }]
+    }),
+    env: { OPENSEA_API: "test-key" }
+  });
+  assert.equal(response.status, 400);
+});
