@@ -67,7 +67,7 @@ function validateSignedOrder(body, contract, tokenId, side, env) {
 }
 
 async function openSeaFetch(path, env, init = {}) {
-  const apiKey = String(env.OPENSEA_API || env.OPENSEA_API_KEY || "").trim();
+  const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
   if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
   const response = await fetch(OPENSEA_API + path, {
     ...init,
