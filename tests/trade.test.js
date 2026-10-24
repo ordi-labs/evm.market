@@ -70,7 +70,7 @@ test("rejects fulfillment requests for a non-Base order", async () => {
 test("includes Base chain at top level and on the order for fulfillment data", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    assert.match(String(url), /api\\.opensea\\.io\\/api\\/v2\\/listings\\/fulfillment_data$/);
+    assert.ok(String(url).endsWith("/api/v2/listings/fulfillment_data"), "expected OpenSea listing fulfillment endpoint");
     const payload = JSON.parse(init.body);
     assert.equal(payload.chain, "base");
     assert.equal(payload.listing.chain, "base");
