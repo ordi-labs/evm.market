@@ -30,7 +30,7 @@ function safe(s){return String(s??"").replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt
 function setNotice(html,err=false){$("notice").innerHTML=html;$("notice").classList.toggle("error",err)}
 function idOf(n){return String(n?.identifier??n?.token_id??n?.id??"").trim()}
 function nameOf(n){return n?.name||n?.metadata?.name||("Token #"+idOf(n))}
-function imageOf(n){return n?.display_image_url||n?.image_url||n?.metadata?.image||n?.image||""}
+function imageOf(n){const image=n?.image;return n?.display_image_url||n?.image_url||n?.metadata?.image||(typeof image==="string"?image:image?.cachedUrl||image?.originalUrl||image?.thumbnailUrl||image?.pngUrl)||""}
 const cardArtworkCache=new Map();
 function detailArtwork(contract,id){if(!id)return Promise.resolve("");const key=contract.toLowerCase()+":"+String(id);if(!cardArtworkCache.has(key)){const request=fetch("/api/nft?contract="+encodeURIComponent(contract)+"&tokenId="+encodeURIComponent(id),{headers:{accept:"application/json"}}).then(async r=>{if(!r.ok)return "";const d=await r.json();return typeof d.image==="string"?d.image.trim():""}).catch(()=> "");cardArtworkCache.set(key,request)}return cardArtworkCache.get(key)}
 async function openSeaArtwork(contract,id){if(!id)return "";try{const r=await fetch("/api/nft?contract="+encodeURIComponent(contract)+"&tokenId="+encodeURIComponent(id)+"&fallback=1",{cache:"no-store",headers:{accept:"application/json","cache-control":"no-cache"}});if(!r.ok)return "";const d=await r.json();return typeof d.image==="string"?d.image.trim():""}catch{return ""}}
