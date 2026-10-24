@@ -36,6 +36,7 @@ export async function onRequestGet({request, env}) {
   const url = new URL(request.url);
   const contract = (url.searchParams.get("contract") || "").toLowerCase();
   const tokenId = (url.searchParams.get("tokenId") || "").trim();
+  const forceOpenSea = url.searchParams.get("fallback") === "1";
   if (!ALLOWED.has(contract)) return json({error:"Unsupported collection contract."}, 400);
   if (!tokenId || tokenId.length > 100 || !/^[0-9]+$/.test(tokenId)) return json({error:"A numeric tokenId is required."}, 400);
 
@@ -43,7 +44,7 @@ export async function onRequestGet({request, env}) {
   let alchemyNft = null;
   let alchemyError = null;
   const configured = env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API;
-  if (configured) {
+  if (configured && !forceOpenSea) {
     try {
       const key = alchemyKeyFromConfig(configured);
       const endpoint = new URL("https://base-mainnet.g.alchemy.com/nft/v3/" + encodeURIComponent(key) + "/getNFTMetadata");
@@ -60,7 +61,7 @@ export async function onRequestGet({request, env}) {
   let openSeaNft = null;
   let openSeaError = null;
   const apiKey = env.OPENSEA_API || env.OPENSEA_API_KEY;
-  if ((!alchemyNft || !hasUsableImage(alchemyNft)) && apiKey) {
+  if ((forceOpenSea || !alchemyNft || !hasUsableImage(alchemyNft)) && apiKey) {
     try {
       const endpoint = new URL("https://api.opensea.io/api/v2/chain/base/contract/" + contract + "/nfts/" + encodeURIComponent(tokenId));
       const response = await fetch(endpoint, {headers: {"accept":"application/json", "x-api-key":apiKey}});
@@ -71,7 +72,7 @@ export async function onRequestGet({request, env}) {
     } catch { openSeaError = "network"; }
   }
 
-  const source = alchemyNft ? "alchemy" : openSeaNft ? "opensea" : null;
+  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : alchemyNft ? "alchemy" : openSeaNft ? "opensea" : null;
   if (!source) {
     const status = alchemyError === 429 || openSeaError === 429 ? 429 : 502;
     return json({
@@ -80,7 +81,7 @@ export async function onRequestGet({request, env}) {
     }, status);
   }
 
-  const nft = (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (openSeaNft || alchemyNft || {});
+  const nft = forceOpenSea ? (openSeaNft || {}) : (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (openSeaNft || alchemyNft || {});
   const metadata = nft.metadata || nft.raw?.metadata || openSeaNft?.metadata || {};
   const traitsRaw = Array.isArray(nft.traits) ? nft.traits
     : Array.isArray(metadata.attributes) ? metadata.attributes
