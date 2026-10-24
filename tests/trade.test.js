@@ -200,3 +200,46 @@ test("preserves upstream OpenSea status and details for diagnosis", async () => 
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("uses current OpenSea best-listing endpoint and returns the UI-compatible shape", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith("/api/v2/listings/collection/base-punks/nfts/1/best"));
+    assert.equal(new Headers(init.headers).get("x-api-key"), "test-key");
+    return new Response(JSON.stringify({
+      asset: { contract: CONTRACT, identifier: "1" },
+      status: "ACTIVE",
+      order_hash: HASH,
+      price: { current: { value: "10000000000000000", currency: "ETH" } }
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await onRequest({
+      request: request("listings", undefined, { method: "GET" }),
+      env: { OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.orders.length, 1);
+    assert.equal(data.listings[0].order_hash, HASH);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("returns an empty order list when OpenSea has no best offer", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).endsWith("/api/v2/offers/collection/base-punks/nfts/1/best"));
+    return new Response(JSON.stringify({ detail: "Not found" }), { status: 404 });
+  };
+  try {
+    const response = await onRequest({
+      request: request("offers", undefined, { method: "GET" }),
+      env: { OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.deepEqual(data.orders, []);
+    assert.deepEqual(data.offers, []);
+  } finally { globalThis.fetch = originalFetch; }
+});
