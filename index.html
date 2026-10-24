@@ -172,7 +172,7 @@ async function connectWalletConnect(){
 function normalizeChainId(value){
  const raw=String(value??"").trim().toLowerCase();
  if(/^0x[0-9a-f]+$/.test(raw))return "0x"+BigInt(raw).toString(16);
- if(/^\\d+$/.test(raw))return "0x"+BigInt(raw).toString(16);
+ if(/^\d+$/.test(raw))return "0x"+BigInt(raw).toString(16);
  return raw
 }
 async function switchToBase(provider){
