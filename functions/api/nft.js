@@ -1,7 +1,7 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const ALLOWED = new Set([PUNKS, NODEMONKES]);
-const json = (data, status = 200) => new Response(JSON.stringify(data), {status, headers: {"content-type":"application/json; charset=utf-8","cache-control":"public, max-age=15, s-maxage=30","x-content-type-options":"nosniff","access-control-allow-origin":"*"}});
+const json = (data, status = 200, forceRefresh = false) => new Response(JSON.stringify(data), {status, headers: {"content-type":"application/json; charset=utf-8","cache-control":forceRefresh ? "no-store, no-cache, must-revalidate, max-age=0" : "public, max-age=15, s-maxage=30","pragma":forceRefresh ? "no-cache" : "","x-content-type-options":"nosniff","access-control-allow-origin":"*"}});
 const text = value => typeof value === "string" ? value : "";
 function ownerAddress(nft) {
   const owners = Array.isArray(nft?.owners) ? nft.owners : [];
@@ -37,8 +37,8 @@ export async function onRequestGet({request, env}) {
   const contract = (url.searchParams.get("contract") || "").toLowerCase();
   const tokenId = (url.searchParams.get("tokenId") || "").trim();
   const forceOpenSea = url.searchParams.get("fallback") === "1";
-  if (!ALLOWED.has(contract)) return json({error:"Unsupported collection contract."}, 400);
-  if (!tokenId || tokenId.length > 100 || !/^[0-9]+$/.test(tokenId)) return json({error:"A numeric tokenId is required."}, 400);
+  if (!ALLOWED.has(contract)) return json({error:"Unsupported collection contract."}, 400, forceOpenSea);
+  if (!tokenId || tokenId.length > 100 || !/^[0-9]+$/.test(tokenId)) return json({error:"A numeric tokenId is required."}, 400, forceOpenSea);
 
   // Alchemy is the primary metadata source for both Base Punks and NodeMonkes.
   let alchemyNft = null;
@@ -64,7 +64,7 @@ export async function onRequestGet({request, env}) {
   if ((forceOpenSea || !alchemyNft || !hasUsableImage(alchemyNft)) && apiKey) {
     try {
       const endpoint = new URL("https://api.opensea.io/api/v2/chain/base/contract/" + contract + "/nfts/" + encodeURIComponent(tokenId));
-      const response = await fetch(endpoint, {headers: {"accept":"application/json", "x-api-key":apiKey}});
+      const response = await fetch(endpoint, {headers: {"accept":"application/json", "x-api-key":apiKey, ...(forceOpenSea ? {"cache-control":"no-cache","pragma":"no-cache"} : {})}, ...(forceOpenSea ? {cache:"no-store"} : {})});
       if (response.ok) {
         const data = await response.json();
         openSeaNft = data.nft || data;
@@ -72,16 +72,45 @@ export async function onRequestGet({request, env}) {
     } catch { openSeaError = "network"; }
   }
 
-  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : alchemyNft ? "alchemy" : openSeaNft ? "opensea" : null;
+  // NodeMonkes can be indexed by Rarible even when generic NFT providers
+  // return no metadata or an empty artwork field.
+  let raribleNft = null;
+  let raribleError = null;
+  const raribleKey = env.RARIBLE_API_KEY;
+  if (contract === NODEMONKES && raribleKey && (!alchemyNft || !hasUsableImage(alchemyNft)) && !forceOpenSea) {
+    try {
+      const itemId = "BASE:" + contract + ":" + tokenId;
+      const endpoint = "https://api.rarible.org/v0.1/items/" + encodeURIComponent(itemId);
+      const response = await fetch(endpoint, {headers:{"accept":"application/json","X-API-KEY":raribleKey}});
+      if (response.ok) {
+        const item = await response.json();
+        const meta = item.meta || {};
+        const content = Array.isArray(meta.content) ? meta.content : [];
+        const rawImage = content.find(x => /image|video/i.test(String(x?.["@type"] || x?.type || "")) && x?.url)?.url
+          || content.find(x => x?.url)?.url || meta.image?.url || meta.image || "";
+        const normalized = normalizeImage(typeof rawImage === "string" ? rawImage : "");
+        raribleNft = {
+          name:meta.name || item.name || "",
+          description:meta.description || item.description || "",
+          image_url:normalized,
+          metadata:{...meta,image:normalized,attributes:Array.isArray(meta.attributes) ? meta.attributes : []},
+          owners:item.owners || (item.owner ? [{address:item.owner}] : []),
+          creator:item.creators?.[0]?.account || item.creators?.[0]?.address || meta.creator || ""
+        };
+      } else raribleError = response.status;
+    } catch { raribleError = "network"; }
+  }
+
+  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : (alchemyNft && hasUsableImage(alchemyNft)) ? "alchemy" : openSeaNft ? "opensea" : raribleNft ? "rarible" : alchemyNft ? "alchemy" : null;
   if (!source) {
     const status = alchemyError === 429 || openSeaError === 429 ? 429 : 502;
     return json({
       error:status === 429 ? "NFT data provider rate limit reached. Please retry shortly." : "Live NFT detail data is temporarily unavailable.",
       source:null
-    }, status);
+    }, status, forceOpenSea);
   }
 
-  const nft = forceOpenSea ? (openSeaNft || {}) : (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (openSeaNft || alchemyNft || {});
+  const nft = forceOpenSea ? (openSeaNft || {}) : (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (openSeaNft || raribleNft || alchemyNft || {});
   const metadata = nft.metadata || nft.raw?.metadata || openSeaNft?.metadata || {};
   const traitsRaw = Array.isArray(nft.traits) ? nft.traits
     : Array.isArray(metadata.attributes) ? metadata.attributes
@@ -118,5 +147,5 @@ export async function onRequestGet({request, env}) {
     updatedAt: text(nft.timeLastUpdated || nft.updated_at || openSeaNft?.updated_at) || null,
     marketplaceUrl: "https://og.rarible.com/token/base/" + contract + ":" + encodeURIComponent(tokenId),
     dataStatus: {owner: owner ? "verified_from_indexer" : "not_provided_by_source", creator: creator ? "provided_by_source" : "not_provided_by_source", rarity: rarity ? "provided_by_source" : "not_provided_by_source"}
-  });
+  }, 200, forceOpenSea);
 }
