@@ -72,7 +72,36 @@ export async function onRequestGet({request, env}) {
     } catch { openSeaError = "network"; }
   }
 
-  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : alchemyNft ? "alchemy" : openSeaNft ? "opensea" : null;
+  // NodeMonkes can be indexed by Rarible even when generic NFT providers
+  // return no metadata or an empty artwork field.
+  let raribleNft = null;
+  let raribleError = null;
+  const raribleKey = env.RARIBLE_API_KEY;
+  if (contract === NODEMONKES && raribleKey && (!alchemyNft || !hasUsableImage(alchemyNft)) && !forceOpenSea) {
+    try {
+      const itemId = "BASE:" + contract + ":" + tokenId;
+      const endpoint = "https://api.rarible.org/v0.1/items/" + encodeURIComponent(itemId);
+      const response = await fetch(endpoint, {headers:{"accept":"application/json","X-API-KEY":raribleKey}});
+      if (response.ok) {
+        const item = await response.json();
+        const meta = item.meta || {};
+        const content = Array.isArray(meta.content) ? meta.content : [];
+        const rawImage = content.find(x => /image|video/i.test(String(x?.["@type"] || x?.type || "")) && x?.url)?.url
+          || content.find(x => x?.url)?.url || meta.image?.url || meta.image || "";
+        const normalized = normalizeImage(typeof rawImage === "string" ? rawImage : "");
+        raribleNft = {
+          name:meta.name || item.name || "",
+          description:meta.description || item.description || "",
+          image_url:normalized,
+          metadata:{...meta,image:normalized,attributes:Array.isArray(meta.attributes) ? meta.attributes : []},
+          owners:item.owners || (item.owner ? [{address:item.owner}] : []),
+          creator:item.creators?.[0]?.account || item.creators?.[0]?.address || meta.creator || ""
+        };
+      } else raribleError = response.status;
+    } catch { raribleError = "network"; }
+  }
+
+  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : (alchemyNft && hasUsableImage(alchemyNft)) ? "alchemy" : openSeaNft ? "opensea" : raribleNft ? "rarible" : alchemyNft ? "alchemy" : null;
   if (!source) {
     const status = alchemyError === 429 || openSeaError === 429 ? 429 : 502;
     return json({
@@ -81,7 +110,7 @@ export async function onRequestGet({request, env}) {
     }, status, forceOpenSea);
   }
 
-  const nft = forceOpenSea ? (openSeaNft || {}) : (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (openSeaNft || alchemyNft || {});
+  const nft = forceOpenSea ? (openSeaNft || {}) : (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (openSeaNft || raribleNft || alchemyNft || {});
   const metadata = nft.metadata || nft.raw?.metadata || openSeaNft?.metadata || {};
   const traitsRaw = Array.isArray(nft.traits) ? nft.traits
     : Array.isArray(metadata.attributes) ? metadata.attributes

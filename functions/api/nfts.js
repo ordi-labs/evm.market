@@ -181,6 +181,51 @@ export async function onRequestGet({request, env}) {
     }
   }
 
+  // Rarible is the collection-native fallback for NodeMonkes on Base.
+  // Keep this server-side so the API key is never exposed to browsers.
+  const raribleKey = env.RARIBLE_API_KEY;
+  if (contract === NODEMONKES && raribleKey && !isOpenSeaCursor) {
+    try {
+      const endpoint = new URL("https://api.rarible.org/v0.1/items/byCollection");
+      endpoint.searchParams.set("collection", "BASE:" + contract);
+      endpoint.searchParams.set("size", String(limit));
+      if (next && !next.startsWith("os_")) endpoint.searchParams.set("continuation", next);
+      const response = await fetch(endpoint, {
+        headers: {"accept":"application/json", "X-API-KEY":raribleKey,
+          ...(forceRefresh ? {"cache-control":"no-cache","pragma":"no-cache"} : {})},
+        ...(forceRefresh ? {cache:"no-store"} : {})
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const nfts = (Array.isArray(data.items) ? data.items : []).map(item => {
+          const tokenId = String(item.tokenId || item.id?.split(":").pop() || "");
+          const meta = item.meta || {};
+          const content = Array.isArray(meta.content) ? meta.content : [];
+          const image = content.find(x => /image|video/i.test(String(x?.["@type"] || x?.type || "")) && x?.url)?.url
+            || content.find(x => x?.url)?.url || meta.image?.url || meta.image || "";
+          const normalized = imageUrl(typeof image === "string" ? image : "");
+          return {
+            identifier:tokenId, token_id:tokenId,
+            name:meta.name || (tokenId ? "Token #" + tokenId : ""),
+            description:meta.description || "",
+            image_url:normalized, display_image_url:normalized,
+            metadata:{name:meta.name || "",description:meta.description || "",image:normalized,
+              attributes:Array.isArray(meta.attributes) ? meta.attributes : []},
+            price:item.bestSellOrder?.make?.value || null,
+            opensea_url:tokenId ? "https://og.rarible.com/token/base/" + contract + ":" + encodeURIComponent(tokenId)
+              : "https://og.rarible.com/collection/base/" + contract + "/items"
+          };
+        }).filter(n => n.identifier);
+        if (nfts.length) return json({
+          nfts, next:typeof data.continuation === "string" ? data.continuation : null,
+          source:"rarible", refreshed:forceRefresh, fetchedAt:new Date().toISOString()
+        }, 200, forceRefresh);
+      }
+    } catch {
+      // Continue to OpenSea fallback if Rarible is unavailable.
+    }
+  }
+
   if (openSeaKey) {
     try {
       const fallback = await fetchOpenSea({
