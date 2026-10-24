@@ -170,7 +170,27 @@ export async function onRequest({ request, env }) {
     catch (error) { return json({ error: error.message }, 400); }
     // This returns transaction calldata only. The browser must show the transaction
     // summary and ask the connected wallet to sign/send it; this Worker never signs.
-    return openSeaFetch("/" + (side === "listing" ? "listings" : "offers") + "/fulfillment_data", env, {
+    if (side === "listing") {
+      // OpenSea's buy-and-sell guide recommends cross-chain fulfillment for buys,
+      // including same-chain Base purchases. It returns ready-to-submit calldata.
+      const listing = fulfillmentRequest.listing;
+      return openSeaFetch("/listings/cross_chain_fulfillment_data", env, {
+        method: "POST",
+        body: JSON.stringify({
+          listings: [{
+            hash: listing.order_hash,
+            chain: CHAIN,
+            protocol_address: listing.protocol_address
+          }],
+          fulfiller: fulfillmentRequest.fulfiller,
+          payment: {
+            chain: CHAIN,
+            address: "0x0000000000000000000000000000000000000000"
+          }
+        })
+      });
+    }
+    return openSeaFetch("/offers/fulfillment_data", env, {
       method: "POST",
       body: JSON.stringify(fulfillmentRequest)
     });
