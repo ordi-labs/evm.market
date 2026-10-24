@@ -52,8 +52,10 @@ function normalizeAlchemyNft(n, contract) {
     image.cachedUrl, image.thumbnailUrl, image.originalUrl, image.pngUrl,
     typeof n.image === "string" ? n.image : "",
     media.gateway, media.raw, media.thumbnail, media.uri,
-    n.image_url, n.display_image_url, metadata.image, metadata.image_url,
-    metadata.imageURI, metadata.imageUri, metadata.properties?.image
+    n.image_url, n.display_image_url,
+    metadata.image, metadata.image_url, metadata.imageURI, metadata.imageUri,
+    metadata.properties?.image, raw.metadata?.image, n.raw?.metadata?.image,
+    n.tokenUri?.gateway, n.tokenUri?.raw
   ];
   const normalizedImage = candidates.map(imageUrl).find(Boolean) || "";
   const attributes = metadata.attributes || metadata.properties?.attributes || n.attributes || [];
