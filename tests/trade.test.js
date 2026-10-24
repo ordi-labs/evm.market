@@ -72,7 +72,10 @@ test("uses same-chain listing fulfillment with an explicit Base chain", async ()
   globalThis.fetch = async (url, init) => {
     assert.ok(String(url).endsWith("/api/v2/listings/fulfillment_data"), "expected standard listing fulfillment endpoint");
     const payload = JSON.parse(init.body);
-    assert.equal(payload.listing.order_hash, HASH);
+    assert.equal(payload.listing.hash, HASH);
+    assert.equal(payload.consideration.contract, CONTRACT);
+    assert.equal(payload.consideration.asset_contract_address, CONTRACT);
+    assert.equal(payload.consideration.token_id, "1");
     assert.equal(payload.listing.chain, "base");
     assert.equal(payload.listing.protocol_address, SEAPORT);
     assert.equal(payload.fulfiller.address, "0x1111111111111111111111111111111111111111");
