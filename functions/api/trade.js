@@ -87,11 +87,40 @@ async function openSeaFetch(path, env, init = {}) {
   return json(data);
 }
 
+
+function validateFulfillmentRequest(body, asset, side, env) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A fulfillment request object is required.");
+  const fulfiller = body.fulfiller;
+  const address = String(fulfiller?.address || "").trim();
+  if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new Error("A valid connected wallet address is required.");
+  const order = body[side];
+  if (!order || typeof order !== "object" || Array.isArray(order)) throw new Error("The selected order is required.");
+  const hash = String(order.order_hash || order.hash || "").trim();
+  if (!/^0x[0-9a-f]{64}$/i.test(hash)) throw new Error("A valid Seaport order hash is required.");
+  const protocolAddress = String(order.protocol_address || "").toLowerCase();
+  const expectedProtocol = String(env.BASE_SEAPORT_ADDRESS || "").trim().toLowerCase();
+  if (!expectedProtocol || !/^0x[0-9a-f]{40}$/i.test(expectedProtocol)) throw new Error("BASE_SEAPORT_ADDRESS must be configured with the verified Base Seaport contract address.");
+  if (protocolAddress !== expectedProtocol) throw new Error("Order protocol address does not match the configured Base Seaport contract.");
+  const chain = String(order.chain || "").toLowerCase();
+  if (chain !== "base") throw new Error("Only Base mainnet orders are supported.");
+  const orderAsset = order.asset;
+  if (!orderAsset || String(orderAsset.contract || "").toLowerCase() !== asset.contract || String(orderAsset.identifier ?? "") !== asset.tokenId) {
+    throw new Error("The order must match the requested allowlisted NFT and token ID.");
+  }
+  return {
+    fulfiller: { address },
+    [side]: { order_hash: hash, chain: "base", protocol_address: protocolAddress },
+    include_optional_creator_fees: body.include_optional_creator_fees === true,
+    ...(body.recipient && /^0x[0-9a-f]{40}$/i.test(String(body.recipient)) ? { recipient: String(body.recipient) } : {})
+  };
+}
+
 export async function onRequest({ request, env }) {
   if (request.method !== "GET" && request.method !== "POST") {
     return json({ error: "Method not allowed." }, 405, { allow: "GET, POST" });
   }
   if (!sameOrigin(request, request.method === "POST")) return json({ error: "Same-origin request required." }, 403);
+
 
   const url = new URL(request.url);
   const action = url.searchParams.get("action") || (request.method === "POST" ? "post-listing" : "listings");
@@ -100,6 +129,21 @@ export async function onRequest({ request, env }) {
     asset = getAssetParams(url);
   } catch (error) {
     return json({ error: error.message }, 400);
+  }
+
+  if (request.method === "POST" && (action === "fulfill-listing" || action === "fulfill-offer")) {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "Request body must be valid JSON." }, 400); }
+    const side = action === "fulfill-listing" ? "listing" : "offer";
+    let fulfillmentRequest;
+    try { fulfillmentRequest = validateFulfillmentRequest(body, asset, side, env); }
+    catch (error) { return json({ error: error.message }, 400); }
+    // This returns transaction calldata only. The browser must show the transaction
+    // summary and ask the connected wallet to sign/send it; this Worker never signs.
+    return openSeaFetch("/" + (side === "listing" ? "listings" : "offers") + "/fulfillment_data", env, {
+      method: "POST",
+      body: JSON.stringify(fulfillmentRequest)
+    });
   }
 
   if (request.method === "GET") {
