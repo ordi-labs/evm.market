@@ -19,10 +19,26 @@ test("rejects cross-origin requests", async () => {
   const response = await onRequestPost({request:request(rpc("eth_chainId"),"https://attacker.test"),env:{ALCHEMY_API_KEY:"test"}});
   assert.equal(response.status,403);
 });
-test("rejects transaction submission methods", async () => {
+test("rejects malformed signed transactions", async () => {
   const response = await onRequestPost({request:request(rpc("eth_sendRawTransaction",["0x1234"])),env:{ALCHEMY_API_KEY:"test"}});
   assert.equal(response.status,400);
-  assert.match((await response.json()).error,/must stay in the connected wallet/);
+  assert.match((await response.json()).error,/valid signed raw transaction/);
+});
+test("broadcasts signed transactions only after confirming Base mainnet", async () => {
+  const originalFetch = globalThis.fetch; const calls = [];
+  globalThis.fetch = async (_url, init) => { const body = JSON.parse(init.body); calls.push(body.method); return new Response(JSON.stringify({jsonrpc:"2.0",id:1,result:body.method === "eth_chainId" ? "0x2105" : "0x" + "a".repeat(64)}),{status:200}); };
+  try {
+    const response = await onRequestPost({request:request(rpc("eth_sendRawTransaction",["0x" + "ab".repeat(100)])),env:{ETHEREUM_API:"https://base-rpc.example/rpc"}});
+    assert.equal(response.status,200); assert.deepEqual(calls,["eth_chainId","eth_sendRawTransaction"]);
+    assert.equal((await response.json()).result,"0x" + "a".repeat(64));
+  } finally { globalThis.fetch = originalFetch; }
+});
+test("blocks broadcasting when ETHEREUM_API is not Base mainnet", async () => {
+  const originalFetch = globalThis.fetch; globalThis.fetch = async () => new Response(JSON.stringify({result:"0x1"}),{status:200});
+  try {
+    const response = await onRequestPost({request:request(rpc("eth_sendRawTransaction",["0x" + "ab".repeat(100)])),env:{ETHEREUM_API:"https://rpc.example"}});
+    assert.equal(response.status,409); assert.match((await response.json()).error,/not responding as Base mainnet/);
+  } finally { globalThis.fetch = originalFetch; }
 });
 test("fails closed if Alchemy is not configured", async () => {
   const response = await onRequestPost({request:request(rpc("eth_chainId")),env:{}});
