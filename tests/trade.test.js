@@ -142,3 +142,23 @@ test("rejects non-positive listing prices", async () => {
   });
   assert.equal(response.status, 400);
 });
+
+test("preserves upstream OpenSea status and details for diagnosis", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ errors: ["Invalid API key or missing permission"] }), {
+    status: 403,
+    headers: { "content-type": "application/json" }
+  });
+  try {
+    const response = await onRequest({
+      request: request("listings", undefined, { method: "GET" }),
+      env: { OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 502);
+    const data = await response.json();
+    assert.equal(data.providerStatus, 403);
+    assert.deepEqual(data.details, ["Invalid API key or missing permission"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
