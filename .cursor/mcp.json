@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "OpenSea": {
+      "url": "https://mcp.opensea.io/mcp",
+      "headers": {
+        "X-API-KEY": "${env:OPENSEA_API}"
+      }
+    }
+  }
+}
