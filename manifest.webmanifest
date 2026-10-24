@@ -1,0 +1,24 @@
+{
+  "id": "/",
+  "name": "evm.market — Collect culture",
+  "short_name": "evm.market",
+  "description": "A premium collector's market for Punks and NodeMonkes on Base.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090b0f",
+  "theme_color": "#090b0f",
+  "categories": [
+    "shopping",
+    "entertainment"
+  ],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
