@@ -50,7 +50,7 @@ export async function onRequestGet({request, env}) {
     } catch { alchemyError = "network"; }
   }
 
-  // Keep OpenSea as a fallback for metadata fields Alchemy does not provide.
+  // Keep OpenSea as a server-side fallback if Alchemy cannot return this NFT.
   let openSeaNft = null;
   let openSeaError = null;
   const apiKey = env.OPENSEA_API || env.OPENSEA_API_KEY;
@@ -95,7 +95,8 @@ export async function onRequestGet({request, env}) {
   } : null;
   const image = normalizeImage(
     nft.image?.cachedUrl || nft.image?.originalUrl || nft.image?.thumbnailUrl ||
-    nft.image_url || nft.image || metadata.image || openSeaNft?.image_url || ""
+    nft.image_url || (typeof nft.image === "string" ? nft.image : "") ||
+    metadata.image || openSeaNft?.image_url || ""
   );
 
   return json({
