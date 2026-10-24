@@ -2,7 +2,7 @@ const ALLOWED_METHODS = new Set(["eth_chainId","eth_blockNumber","eth_call","eth
 const json = (data, status = 200) => new Response(JSON.stringify(data), {status, headers: {"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer","content-security-policy":"default-src 'none'; frame-ancestors 'none'"} });
 function sameOrigin(request) {
   const origin = request.headers.get("origin");
-  if (!origin) return true;
+  if (!origin) return false;
   try { return new URL(origin).origin === new URL(request.url).origin; } catch { return false; }
 }
 function getAlchemyKey(env) {
