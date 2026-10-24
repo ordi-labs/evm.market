@@ -67,7 +67,9 @@ export async function onRequestGet({request, env}) {
   // Alchemy is the primary metadata source for both Base Punks and NodeMonkes.
   let alchemyNft = null;
   let alchemyError = null;
-  const configured = env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API;
+  const configured = contract === NODEMONKES
+    ? (env.ETHEREUM_API || env.ALCHEMY_API_KEY || env.ALCHEMY_API)
+    : (env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API);
   if (configured && !forceOpenSea) {
     try {
       const key = alchemyKeyFromConfig(configured);
