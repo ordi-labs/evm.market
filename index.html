@@ -106,13 +106,33 @@ async function chooseWalletProvider(){
  }
  $("walletChooser").classList.add("open");$("walletChooser").setAttribute("aria-hidden","false");
 }
+async function switchToBase(provider){
+ const baseChainId="0x2105";
+ try{await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:baseChainId}]})}
+ catch(error){
+  const code=error?.code??error?.data?.originalError?.code;
+  if(code===4902){
+   await provider.request({method:"wallet_addEthereumChain",params:[{chainId:baseChainId,chainName:"Base Mainnet",nativeCurrency:{name:"Ether",symbol:"ETH",decimals:18},rpcUrls:["https://mainnet.base.org"],blockExplorerUrls:["https://basescan.org"]}]});
+   await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:baseChainId}]})
+  }else{throw error}
+ }
+ const chain=await provider.request({method:"eth_chainId"});
+ if(chain!==baseChainId)throw new Error("Wallet did not switch to Base (chain ID 8453).");
+ return chain
+}
 async function connect(provider=null,label="wallet"){
  if(!provider){await chooseWalletProvider();return}
  try{
   const accounts=await provider.request({method:"eth_requestAccounts"});
   activeProvider=provider;
   account=accounts[0]||null;
-  const chain=await provider.request({method:"eth_chainId"});
+  if(!account){walletOnBase=false;setNotice("<strong>Wallet not connected.</strong> No account was returned.",true);render();return}
+  let chain=await provider.request({method:"eth_chainId"});
+  let switchError=null;
+  if(chain!=="0x2105"){
+   try{await switchToBase(provider);chain=await provider.request({method:"eth_chainId"})}
+   catch(error){switchError=error;chain=await provider.request({method:"eth_chainId"}).catch(()=> "0x0")}
+  }
   walletOnBase=chain==="0x2105";
   ownershipCache.clear();
   $("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";
@@ -120,7 +140,7 @@ async function connect(provider=null,label="wallet"){
   attachWalletListeners(provider);
   if(!account){setNotice("<strong>Wallet not connected.</strong> No account was returned.",true);render();return}
   if(!walletOnBase){
-   setNotice("<strong>"+safe(label)+" connected, but not on Base.</strong> No network switch, signature, approval or transaction was requested. Change to Base (chain ID 8453) manually in your wallet if you want to use Base features.");
+   setNotice("<strong>"+safe(label)+" connected, but Base switch was not completed.</strong> "+safe(switchError?.message||"Switch to Base (chain ID 8453) manually in your wallet to use NFT actions.")+" No signature, approval or transaction was requested.",true);
    render();return
   }
   setNotice("<strong>"+safe(label)+" connected on Base.</strong> "+safe(account)+". Connection reads only your public account and network; it does not sign messages, approve tokens or submit transactions. Trading links open an external marketplace. Review every wallet prompt before signing.");
