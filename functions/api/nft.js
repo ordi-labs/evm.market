@@ -101,10 +101,9 @@ export async function onRequestGet({request, env}) {
     source: text(rarityData.source || (openSeaNft?.rarity ? "OpenSea" : "Alchemy"))
   } : null;
   const image = normalizeImage(
-    nft.image?.cachedUrl || nft.image?.originalUrl || nft.image?.thumbnailUrl || nft.image?.pngUrl ||
-    nft.image_url || nft.display_image_url || (typeof nft.image === "string" ? nft.image : "") ||
-    metadata.image || metadata.image_url || metadata.imageURI || metadata.imageUri ||
-    metadata.properties?.image || openSeaNft?.display_image_url || openSeaNft?.image_url || openSeaNft?.metadata?.image || ""
+    nft.image?.cachedUrl || nft.image?.originalUrl || nft.image?.thumbnailUrl ||
+    nft.image_url || (typeof nft.image === "string" ? nft.image : "") ||
+    metadata.image || openSeaNft?.image_url || ""
   );
 
   return json({
