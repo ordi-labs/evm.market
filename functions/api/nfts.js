@@ -7,12 +7,14 @@ export async function onRequestGet({request, env}) {
   const limit = Math.min(20, Math.max(1, Number.parseInt(url.searchParams.get("limit") || "20", 10) || 20));
   const next = url.searchParams.get("next");
   if (next && (next.length > 2048 || !/^[A-Za-z0-9_=-]+$/.test(next))) return json({error:"Invalid pagination cursor."}, 400);
-  if (!env.OPENSEA_API_KEY) return json({error:"OpenSea API key is not configured for this Pages environment."}, 503);
+  // Cloudflare Pages secrets are configured per project; accept the user's established name.
+  const openSeaKey = env.OPENSEA_API || env.OPENSEA_API_KEY;
+  if (!openSeaKey) return json({error:"OpenSea API secret (OPENSEA_API) is not configured for this Pages environment."}, 503);
   const upstream = new URL("https://api.opensea.io/api/v2/chain/base/contract/" + contract + "/nfts");
   upstream.searchParams.set("limit", String(limit));
   if (next) upstream.searchParams.set("next", next);
   let response;
-  try { response = await fetch(upstream, {headers:{"accept":"application/json","x-api-key":env.OPENSEA_API_KEY}}); }
+  try { response = await fetch(upstream, {headers:{"accept":"application/json","x-api-key":openSeaKey}}); }
   catch { return json({error:"OpenSea is temporarily unreachable. Please retry."}, 502); }
   if (!response.ok) return json({error:response.status === 429 ? "OpenSea rate limit reached. Please retry shortly." : "OpenSea API request failed.", upstreamStatus:response.status}, response.status === 429 ? 429 : 502);
   let data;
