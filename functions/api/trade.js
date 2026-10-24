@@ -108,11 +108,17 @@ function validateFulfillmentRequest(body, asset, side, env) {
     throw new Error("The order must match the requested allowlisted NFT and token ID.");
   }
   return {
-    // OpenSea fulfillment_data requires the target chain at the top level as well
-    // as on the selected order. The route alone does not satisfy that schema.
+    // OpenSea fulfillment_data expects "hash" on the order, not "order_hash".
+    // Include the NFT consideration explicitly so the API can resolve its contract
+    // and token ID rather than returning "Missing required field 'contract'".
     chain: CHAIN,
     fulfiller: { address },
-    [side]: { order_hash: hash, chain: CHAIN, protocol_address: protocolAddress },
+    [side]: { hash, chain: CHAIN, protocol_address: protocolAddress },
+    consideration: {
+      contract: asset.contract,
+      asset_contract_address: asset.contract,
+      token_id: asset.tokenId
+    },
     include_optional_creator_fees: body.include_optional_creator_fees === true,
     ...(body.recipient && /^0x[0-9a-f]{40}$/i.test(String(body.recipient)) ? { recipient: String(body.recipient) } : {})
   };
