@@ -145,8 +145,8 @@ function validateListingActionsRequest(body, asset) {
   return {
     address,
     items: [{
-      // OpenSea's listing-actions API requires the NFT identity as explicit fields;
-      // nft_id alone is not sufficient for every API schema/version.
+      // OpenSea requires the chain on each listing item (not at top level).
+      chain: CHAIN,
       contract: asset.contract,
       token_id: asset.tokenId,
       quantity: 1,
