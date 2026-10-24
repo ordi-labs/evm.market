@@ -165,7 +165,9 @@ export async function onRequestGet({request, env}) {
       else {
         const data = await response.json();
         const nfts = Array.isArray(data.nfts) ? data.nfts.map(n => normalizeAlchemyNft(n, contract)) : [];
-        if (nfts.length) {
+        // For NodeMonkes, an indexed token without artwork is not enough:
+        // let the Rarible fallback supply the actual collection media.
+        if (nfts.length && (contract !== NODEMONKES || nfts.some(n => Boolean(n.image_url)))) {
           return json({
             nfts,
             next:typeof data.pageKey === "string" ? data.pageKey : null,
@@ -174,7 +176,7 @@ export async function onRequestGet({request, env}) {
             fetchedAt:new Date().toISOString()
           }, 200, forceRefresh);
         }
-        alchemyError = "empty";
+        alchemyError = nfts.length ? "missing-artwork" : "empty";
       }
     } catch {
       alchemyError = "network";
