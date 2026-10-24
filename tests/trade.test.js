@@ -102,7 +102,7 @@ test("validates listing-action requests before contacting OpenSea", async () => 
   };
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    assert.match(String(url), /api\\.opensea\\.io\\/api\\/v2\\/listings\\/actions$/);
+    assert.match(String(url), /api\.opensea\.io\/api\/v2\/listings\/actions$/);
     assert.equal(init.method, "POST");
     assert.equal(JSON.parse(init.body).items[0].nft_id, "base/" + CONTRACT + "/1");
     return new Response(JSON.stringify({ steps: [] }), { status: 200, headers: { "content-type": "application/json" } });
