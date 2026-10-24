@@ -5,17 +5,32 @@ function sameOrigin(request) {
   if (!origin) return false;
   try { return new URL(origin).origin === new URL(request.url).origin; } catch { return false; }
 }
-function getAlchemyKey(env) {
-  const configured = String(env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API || "").trim();
-  if (!configured) return "";
-  if (!/^https?:\/\//i.test(configured)) return configured;
-  try {
-    const url = new URL(configured);
-    if (!/\.alchemy\.com$/i.test(url.hostname)) return "";
-    const parts = url.pathname.split("/").filter(Boolean);
-    const v = parts.findIndex(part => part === "v2");
-    return v >= 0 && parts[v + 1] ? parts[v + 1] : "";
-  } catch { return ""; }
+function getRpcConfig(env) {
+  // ETHEREUM_API may be a full Base-compatible HTTPS JSON-RPC endpoint.
+  // Keep the endpoint server-side; never return it to the browser.
+  const ethereumApi = String(env.ETHEREUM_API || "").trim();
+  if (/^https:\/\//i.test(ethereumApi)) {
+    try {
+      const url = new URL(ethereumApi);
+      if (url.protocol !== "https:" || url.username || url.password) return null;
+      return {url: url.toString(), provider: "configured ETHEREUM_API"};
+    } catch { return null; }
+  }
+  // Backward compatibility: ALCHEMY_API may be a full Alchemy URL.
+  const configured = String(env.ALCHEMY_API_KEY || env.ALCHEMY_API || ethereumApi || "").trim();
+  if (!configured) return null;
+  if (/^https?:\/\//i.test(configured)) {
+    try {
+      const url = new URL(configured);
+      if (url.protocol !== "https:" || !/\.alchemy\.com$/i.test(url.hostname) || url.username || url.password) return null;
+      const parts = url.pathname.split("/").filter(Boolean);
+      const v = parts.findIndex(part => part === "v2");
+      if (v < 0 || !parts[v + 1]) return null;
+      return {url: url.toString(), provider: "Alchemy Base RPC"};
+    } catch { return null; }
+  }
+  // Bare keys retain the legacy Alchemy-key behavior.
+  return {url: "https://base-mainnet.g.alchemy.com/v2/" + encodeURIComponent(configured), provider: "Alchemy Base RPC"};
 }
 function validAddress(value) { return typeof value === "string" && /^0x[0-9a-f]{40}$/i.test(value); }
 function validateParams(method, params) {
@@ -40,10 +55,10 @@ export async function onRequestPost({request, env}) {
   if (typeof method !== "string" || !ALLOWED_METHODS.has(method)) return json({error:"RPC method is not allowed. Transaction signing and submission must stay in the connected wallet."}, 400);
   let params;
   try { params = validateParams(method, body.params ?? []); } catch (error) { return json({error:error.message}, 400); }
-  const key = getAlchemyKey(env);
-  if (!key) return json({error:"Base Ethereum RPC is not configured. Set ALCHEMY_API_KEY (or ALCHEMY_API / ETHEREUM_API) as a Cloudflare Pages secret."}, 503);
+  const rpc = getRpcConfig(env);
+  if (!rpc) return json({error:"Base-compatible RPC is not configured. Set ETHEREUM_API to an HTTPS Base mainnet JSON-RPC endpoint, or configure ALCHEMY_API_KEY / ALCHEMY_API."}, 503);
   try {
-    const upstream = await fetch("https://base-mainnet.g.alchemy.com/v2/" + encodeURIComponent(key), {
+    const upstream = await fetch(rpc.url, {
       method:"POST", headers:{"content-type":"application/json","accept":"application/json"},
       body:JSON.stringify({jsonrpc:"2.0",id:body.id,method,params})
     });
