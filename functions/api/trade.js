@@ -177,6 +177,9 @@ export async function onRequest({ request, env }) {
       return openSeaFetch("/listings/cross_chain_fulfillment_data", env, {
         method: "POST",
         body: JSON.stringify({
+          // Cross-chain fulfillment's request has a top-level target chain as well
+          // as the source chain on each listing and the payment-token chain.
+          chain: CHAIN,
           listings: [{
             hash: listing.order_hash,
             chain: CHAIN,
