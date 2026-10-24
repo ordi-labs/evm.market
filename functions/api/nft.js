@@ -26,6 +26,12 @@ function normalizeImage(value) {
   if (trimmed.startsWith("ar://")) return "https://arweave.net/" + trimmed.slice(5);
   return trimmed;
 }
+function hasUsableImage(nft) {
+  const metadata = nft?.metadata || nft?.raw?.metadata || {};
+  const image = nft?.image;
+  const candidates = [image?.cachedUrl, image?.originalUrl, image?.thumbnailUrl, image?.pngUrl, typeof image === "string" ? image : "", nft?.image_url, nft?.display_image_url, metadata.image, metadata.image_url, metadata.imageURI, metadata.imageUri];
+  return candidates.some(value => typeof value === "string" && value.trim().length > 0);
+}
 export async function onRequestGet({request, env}) {
   const url = new URL(request.url);
   const contract = (url.searchParams.get("contract") || "").toLowerCase();
@@ -54,7 +60,7 @@ export async function onRequestGet({request, env}) {
   let openSeaNft = null;
   let openSeaError = null;
   const apiKey = env.OPENSEA_API || env.OPENSEA_API_KEY;
-  if (!alchemyNft && apiKey) {
+  if ((!alchemyNft || !hasUsableImage(alchemyNft)) && apiKey) {
     try {
       const endpoint = new URL("https://api.opensea.io/api/v2/chain/base/contract/" + contract + "/nfts/" + encodeURIComponent(tokenId));
       const response = await fetch(endpoint, {headers: {"accept":"application/json", "x-api-key":apiKey}});
@@ -74,7 +80,7 @@ export async function onRequestGet({request, env}) {
     }, status);
   }
 
-  const nft = alchemyNft || openSeaNft || {};
+  const nft = (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (openSeaNft || alchemyNft || {});
   const metadata = nft.metadata || nft.raw?.metadata || openSeaNft?.metadata || {};
   const traitsRaw = Array.isArray(nft.traits) ? nft.traits
     : Array.isArray(metadata.attributes) ? metadata.attributes
