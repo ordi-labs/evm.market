@@ -145,7 +145,16 @@ function validateListingActionsRequest(body, asset) {
   return {
     chain: CHAIN,
     address,
-    items: [{ chain: CHAIN, nft_id: expectedNftId, quantity: 1, price: { currency: currency.toUpperCase(), amount } }],
+    items: [{
+      chain: CHAIN,
+      // OpenSea's listing-actions API requires the NFT identity as explicit fields;
+      // nft_id alone is not sufficient for every API schema/version.
+      contract: asset.contract,
+      token_id: asset.tokenId,
+      nft_id: expectedNftId,
+      quantity: 1,
+      price: { currency: currency.toUpperCase(), amount }
+    }],
     use_creator_fee: body.use_creator_fee !== false,
     ...(body.taker && /^0x[0-9a-f]{40}$/i.test(String(body.taker)) ? { taker: String(body.taker) } : {})
   };
@@ -186,7 +195,12 @@ export async function onRequest({ request, env }) {
           listing: {
             hash: listing.hash,
             chain: CHAIN,
-            protocol_address: listing.protocol_address
+            protocol_address: listing.protocol_address,
+            // Keep the NFT identity explicit in the upstream payload. OpenSea's
+            // current fulfillment validator can reject hash-only requests with
+            // "Missing required field 'contract'" even after local validation.
+            contract: asset.contract,
+            token_id: asset.tokenId
           },
           fulfiller: fulfillmentRequest.fulfiller,
           consideration: fulfillmentRequest.consideration,
