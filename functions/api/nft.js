@@ -32,6 +32,30 @@ function hasUsableImage(nft) {
   const candidates = [image?.cachedUrl, image?.originalUrl, image?.thumbnailUrl, image?.pngUrl, typeof image === "string" ? image : "", nft?.image_url, nft?.display_image_url, metadata.image, metadata.image_url, metadata.imageURI, metadata.imageUri];
   return candidates.some(value => typeof value === "string" && value.trim().length > 0);
 }
+async function resolveAlchemyMetadata(nft) {
+  const raw = nft?.raw || {};
+  const existing = raw.metadata || nft?.metadata || {};
+  const tokenUri = nft?.tokenUri;
+  const candidates = [
+    typeof tokenUri === "string" ? tokenUri : "",
+    tokenUri?.gateway,
+    tokenUri?.raw
+  ].map(normalizeImage).filter(value => /^https?:\/\//i.test(value));
+  const image = existing.image || existing.image_url || existing.imageURI || existing.imageUri || existing.properties?.image;
+  if (typeof image === "string" && image.trim()) return nft;
+  for (const uri of candidates) {
+    try {
+      const response = await fetch(uri, {headers: {"accept":"application/json"}});
+      if (!response.ok) continue;
+      const metadata = await response.json();
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) continue;
+      return {...nft, raw: {...raw, metadata: {...existing, ...metadata}}, metadata: {...(nft.metadata || {}), ...metadata}};
+    } catch {
+      // Try the next Alchemy-provided metadata URI.
+    }
+  }
+  return nft;
+}
 export async function onRequestGet({request, env}) {
   const url = new URL(request.url);
   const contract = (url.searchParams.get("contract") || "").toLowerCase();
@@ -52,8 +76,10 @@ export async function onRequestGet({request, env}) {
       endpoint.searchParams.set("tokenId", tokenId);
       endpoint.searchParams.set("refreshCache", "false");
       const response = await fetch(endpoint, {headers: {"accept":"application/json"}});
-      if (response.ok) alchemyNft = await response.json();
-      else alchemyError = response.status;
+      if (response.ok) {
+        alchemyNft = await response.json();
+        if (!hasUsableImage(alchemyNft)) alchemyNft = await resolveAlchemyMetadata(alchemyNft);
+      } else alchemyError = response.status;
     } catch { alchemyError = "network"; }
   }
 
