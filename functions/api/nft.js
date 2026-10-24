@@ -101,7 +101,7 @@ export async function onRequestGet({request, env}) {
     } catch { raribleError = "network"; }
   }
 
-  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : (alchemyNft && hasUsableImage(alchemyNft)) ? "alchemy" : openSeaNft ? "opensea" : raribleNft ? "rarible" : alchemyNft ? "alchemy" : null;
+  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : (alchemyNft && hasUsableImage(alchemyNft)) ? "alchemy" : (raribleNft && hasUsableImage(raribleNft)) ? "rarible" : openSeaNft ? "opensea" : raribleNft ? "rarible" : alchemyNft ? "alchemy" : null;
   if (!source) {
     const status = alchemyError === 429 || openSeaError === 429 ? 429 : 502;
     return json({
@@ -110,7 +110,7 @@ export async function onRequestGet({request, env}) {
     }, status, forceOpenSea);
   }
 
-  const nft = forceOpenSea ? (openSeaNft || {}) : (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (openSeaNft || raribleNft || alchemyNft || {});
+  const nft = forceOpenSea ? (openSeaNft || {}) : (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (raribleNft && hasUsableImage(raribleNft)) ? raribleNft : (openSeaNft || raribleNft || alchemyNft || {});
   const metadata = nft.metadata || nft.raw?.metadata || openSeaNft?.metadata || {};
   const traitsRaw = Array.isArray(nft.traits) ? nft.traits
     : Array.isArray(metadata.attributes) ? metadata.attributes
