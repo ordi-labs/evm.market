@@ -103,7 +103,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetails()});
 
 async function load(reset=false,forceRefresh=false){if(reset){page=1;cursors={1:null};nextCursor=null}const cfg=COLLECTIONS[selected];$("grid").innerHTML='<div class="empty"><span class="spinner"></span>Loading collection…</div>';$("count").textContent="Loading…";$("prev").disabled=page<=1;$("next").disabled=true;$("page").textContent="Page "+page;try{const cursor=cursors[page];const url="/api/nfts?contract="+encodeURIComponent(cfg.contract)+"&limit="+PAGE_SIZE+(cursor?"&next="+encodeURIComponent(cursor):"")+(forceRefresh?"&refresh=1&_="+Date.now():"");const res=await fetch(url,{cache:forceRefresh?"no-store":"default",headers:{accept:"application/json",...(forceRefresh?{"cache-control":"no-cache","pragma":"no-cache"}:{})}});const data=await res.json();if(!res.ok)throw new Error(data.error||("API returned HTTP "+res.status));items=data.nfts||[];nextCursor=data.next||null;if(nextCursor)cursors[page+1]=nextCursor;$("prev").disabled=page<=1;$("next").disabled=!nextCursor;$("page").textContent="Page "+page+(nextCursor?" · more results available":" · end of results");if(forceRefresh)setNotice("<strong>Forced refresh complete.</strong> "+cfg.name+" · fresh request at "+new Date().toLocaleTimeString()+" · "+(data.source||"API")+" · "+items.length+" items loaded.");else if(data.source==="opensea")setNotice("<strong>Live data connected.</strong> "+cfg.name+" · verified contract "+cfg.contract+" · OpenSea.");else if(data.source==="alchemy")setNotice("<strong>Live data connected.</strong> "+cfg.name+" · Base mainnet · Alchemy NFT API.");else if(data.source==="rarible")setNotice("<strong>Live data connected.</strong> "+cfg.name+" · Base mainnet · Rarible API.");else setNotice("<strong>Data source status.</strong> Live API returned a response, but verify its source before trading.");render()}catch(e){items=[];$("grid").innerHTML='<div class="empty"><strong>Live collection data is unavailable.</strong><br>'+safe(e.message||e)+'<br><br>Check the API secret for this collection and the Cloudflare Pages deployment, then refresh.</div>';setNotice("<strong>Live data unavailable.</strong> No transaction was submitted. Marketplace links are external.",true);$("count").textContent="Data unavailable"}}
 document.querySelectorAll("[data-collection]").forEach(b=>b.addEventListener("click",()=>{selected=b.dataset.collection;document.querySelectorAll("[data-collection]").forEach(x=>x.classList.toggle("active",x===b));load(true,selected==="nodemonkes")}));$("search").addEventListener("input",render);$("sort").addEventListener("change",render);$("refresh").addEventListener("click",()=>load(false,true));$("prev").addEventListener("click",()=>{if(page>1){page--;load(false)}});$("next").addEventListener("click",()=>{if(nextCursor){page++;load(false)}});
-let activeProvider=null;
+let activeProvider=null;let connectInFlight=null;const listenerProviders=new WeakSet();
 function closeWalletChooser(){$("walletChooser").classList.remove("open");$("walletChooser").setAttribute("aria-hidden","true")}
 async function chooseWalletProvider(){
  $("signatureGate").hidden=true;
@@ -170,8 +170,13 @@ async function switchToBase(provider){
  if(chain!==baseChainId)throw new Error("Wallet remained on chain "+String(chain)+" after the Base switch request. Switch to Base Mainnet (chain ID 8453) in the wallet and retry.");
  return baseChainId
 }
-async function connect(provider=null,label="wallet"){
- if(!provider){await chooseWalletProvider();return}
+function connect(provider=null,label="wallet"){
+ if(!provider)return chooseWalletProvider();
+ if(connectInFlight)return connectInFlight;
+ connectInFlight=connectWalletSession(provider,label).finally(()=>{connectInFlight=null});
+ return connectInFlight
+}
+async function connectWalletSession(provider,label){
  try{
   const accounts=await provider.request({method:"eth_requestAccounts"});
   activeProvider=provider;
@@ -207,8 +212,10 @@ async function connect(provider=null,label="wallet"){
  }catch(e){$("signatureGate").hidden=false;setNotice("<strong>Wallet verification failed.</strong> "+safe(e.message||e)+". Marketplace access remains locked; no transaction was sent.",true)}
 }
 function attachWalletListeners(provider){
- provider.on?.("accountsChanged",a=>{account=a[0]||null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=false;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=normalizeChainId(chain)==="0x2105";render()}).catch(()=>render())}else{activeProvider=null;render()}});
- provider.on?.("chainChanged",()=>location.reload());
+ if(!provider||listenerProviders.has(provider))return;
+ listenerProviders.add(provider);
+ provider.on?.("accountsChanged",a=>{const nextAccount=a[0]||null;if((nextAccount||"").toLowerCase()===(account||"").toLowerCase())return;account=nextAccount;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=false;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=normalizeChainId(chain)==="0x2105";if(walletOnBase)setNotice("<strong>Wallet account changed.</strong> Sign in again to verify the newly selected account.");render()}).catch(()=>render())}else{activeProvider=null;render()}});
+ provider.on?.("chainChanged",chain=>{walletOnBase=normalizeChainId(chain)==="0x2105";if(!walletOnBase)setNotice("<strong>Wallet network changed.</strong> Switch back to Base Mainnet (chain ID 8453) before using marketplace actions.",true);render()});
 }
 $("connect").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open wallet chooser.</strong> "+safe(error?.message||error),true)));
 $("signatureGateContinue").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open wallet chooser.</strong> "+safe(error?.message||error),true)));
