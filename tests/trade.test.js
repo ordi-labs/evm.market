@@ -67,20 +67,17 @@ test("rejects fulfillment requests for a non-Base order", async () => {
 });
 
 
-test("uses OpenSea cross-chain fulfillment for Base NFT purchases", async () => {
+test("uses same-chain listing fulfillment with an explicit Base chain", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    assert.ok(String(url).endsWith("/api/v2/listings/cross_chain_fulfillment_data"), "expected OpenSea cross-chain fulfillment endpoint");
+    assert.ok(String(url).endsWith("/api/v2/listings/fulfillment_data"), "expected standard listing fulfillment endpoint");
     const payload = JSON.parse(init.body);
-    assert.equal(payload.chain, "base");
-    assert.equal(payload.listings.length, 1);
-    assert.equal(payload.listings[0].hash, HASH);
-    assert.equal(payload.listings[0].chain, "base");
-    assert.equal(payload.listings[0].protocol_address, SEAPORT);
+    assert.equal(payload.listing.order_hash, HASH);
+    assert.equal(payload.listing.chain, "base");
+    assert.equal(payload.listing.protocol_address, SEAPORT);
     assert.equal(payload.fulfiller.address, "0x1111111111111111111111111111111111111111");
-    assert.equal(payload.payment.chain, "base");
-    assert.equal(payload.payment.address, "0x0000000000000000000000000000000000000000");
-    return new Response(JSON.stringify({ transactions: [{ chain: "base", to: "0x1111111111111111111111111111111111111111", data: "0x12345678", value: "0" }] }), {
+    assert.equal(payload.include_optional_creator_fees, false);
+    return new Response(JSON.stringify({ fulfillment_data: { transaction: { chain: "base", to: "0x1111111111111111111111111111111111111111", data: "0x12345678", value: "0" } } }), {
       status: 200, headers: { "content-type": "application/json" }
     });
   };
@@ -91,8 +88,8 @@ test("uses OpenSea cross-chain fulfillment for Base NFT purchases", async () => 
     });
     assert.equal(response.status, 200);
     const data = await response.json();
-    assert.equal(data.transactions[0].chain, "base");
-    assert.equal(data.transactions[0].data, "0x12345678");
+    assert.equal(data.fulfillment_data.transaction.chain, "base");
+    assert.equal(data.fulfillment_data.transaction.data, "0x12345678");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -139,6 +136,7 @@ test("validates listing-action requests before contacting OpenSea", async () => 
     assert.equal(init.method, "POST");
     assert.equal(JSON.parse(init.body).chain, "base");
     assert.equal(JSON.parse(init.body).items[0].nft_id, "base/" + CONTRACT + "/1");
+    assert.equal(JSON.parse(init.body).items[0].chain, "base");
     return new Response(JSON.stringify({ steps: [] }), { status: 200, headers: { "content-type": "application/json" } });
   };
   try {

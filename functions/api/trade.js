@@ -139,7 +139,7 @@ function validateListingActionsRequest(body, asset) {
   return {
     chain: CHAIN,
     address,
-    items: [{ nft_id: expectedNftId, quantity: 1, price: { currency: currency.toUpperCase(), amount } }],
+    items: [{ chain: CHAIN, nft_id: expectedNftId, quantity: 1, price: { currency: currency.toUpperCase(), amount } }],
     use_creator_fee: body.use_creator_fee !== false,
     ...(body.taker && /^0x[0-9a-f]{40}$/i.test(String(body.taker)) ? { taker: String(body.taker) } : {})
   };
@@ -171,25 +171,20 @@ export async function onRequest({ request, env }) {
     // This returns transaction calldata only. The browser must show the transaction
     // summary and ask the connected wallet to sign/send it; this Worker never signs.
     if (side === "listing") {
-      // OpenSea's buy-and-sell guide recommends cross-chain fulfillment for buys,
-      // including same-chain Base purchases. It returns ready-to-submit calldata.
+      // Same-chain Base purchase paid in Base ETH: use the standard fulfillment
+      // endpoint, not the cross-chain endpoint with its different request schema.
       const listing = fulfillmentRequest.listing;
-      return openSeaFetch("/listings/cross_chain_fulfillment_data", env, {
+      return openSeaFetch("/listings/fulfillment_data", env, {
         method: "POST",
         body: JSON.stringify({
-          // Include the target chain at the request root and explicitly on the
-          // listing and payment objects to satisfy OpenSea's chain validation.
-          chain: CHAIN,
-          listings: [{
-            hash: listing.order_hash,
+          listing: {
+            order_hash: listing.order_hash,
             chain: CHAIN,
             protocol_address: listing.protocol_address
-          }],
+          },
           fulfiller: fulfillmentRequest.fulfiller,
-          payment: {
-            chain: CHAIN,
-            address: "0x0000000000000000000000000000000000000000"
-          }
+          include_optional_creator_fees: fulfillmentRequest.include_optional_creator_fees,
+          ...(fulfillmentRequest.recipient ? { recipient: fulfillmentRequest.recipient } : {})
         })
       });
     }
