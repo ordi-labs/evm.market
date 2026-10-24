@@ -7,10 +7,11 @@ A premium, responsive collection explorer for Base Punks and NodeMonkes on Base.
 - NodeMonkes: `0x095b6ae2102094be8b5f06fac27275ddb9a8c70`
 
 ## Cloudflare Pages
-- Connect `ordi-labs/evm.market` to its own Pages project.
+- Dedicated Pages project: `evm-market-premium` (`evm-market-premium.pages.dev`).
+- Git source: `ordi-labs/evm.market`, production branch `main`.
 - Build command: none; output directory: repository root.
 - Add `OPENSEA_API_KEY` as a Pages secret for production and preview environments. Never commit API keys.
-- Deploy and verify `/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&limit=20`.
+- Verify `/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&limit=20` after deployment.
 
 ## Current functionality
 Responsive collection browsing, contract allowlisting, search, cursor pagination, external marketplace links, and injected EVM wallet connection/Base network switching.
