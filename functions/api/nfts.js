@@ -44,7 +44,7 @@ export async function onRequestGet({request, env}) {
       name: n.name || n.raw?.metadata?.name || "",
       description: n.description || n.raw?.metadata?.description || "",
       image_url: n.image?.cachedUrl || n.image?.thumbnailUrl || n.image?.originalUrl || n.raw?.metadata?.image || "",
-      opensea_url: "https://og.rarible.com/collection/base/0x095b6ae2102094be8b5f06fac27275ddb9a8c70a/items"
+      opensea_url: n.tokenId != null ? "https://og.rarible.com/token/" + contract + ":" + encodeURIComponent(String(n.tokenId)) : "https://og.rarible.com/collection/base/" + contract + "/items"
     })) : [];
     return json({nfts, next:typeof data.pageKey === "string" ? data.pageKey : null, source:"alchemy"});
   }
