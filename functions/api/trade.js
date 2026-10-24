@@ -1,6 +1,10 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const ALLOWED = new Set([PUNKS, NODEMONKES]);
+const COLLECTION_SLUGS = new Map([
+  [PUNKS, "base-punks"],
+  [NODEMONKES, "nodemonkes"]
+]);
 const OPENSEA_API = "https://api.opensea.io/api/v2";
 const CHAIN = "base";
 const PROTOCOL = "seaport";
@@ -229,12 +233,40 @@ export async function onRequest({ request, env }) {
 
   if (request.method === "GET") {
     if (action !== "listings" && action !== "offers") return json({ error: "Unsupported read action." }, 400);
-    const params = new URLSearchParams({
-      asset_contract_address: asset.contract,
-      token_ids: asset.tokenId,
-      limit: "10"
-    });
-    return openSeaFetch("/orders/" + CHAIN + "/" + PROTOCOL + "/" + action + "?" + params.toString(), env);
+    // OpenSea removed GET /orders/{chain}/{protocol}/listings and /offers in May 2026.
+    // Use the supported best-order-by-NFT endpoints and preserve the response shape
+    // expected by the browser. A 404 means no best order exists for this NFT.
+    const slug = COLLECTION_SLUGS.get(asset.contract);
+    const endpoint = "/" + action + "/collection/" + slug + "/nfts/" + encodeURIComponent(asset.tokenId) + "/best";
+    const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
+    if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
+    let response;
+    try {
+      response = await fetch(OPENSEA_API + endpoint, {
+        headers: { accept: "application/json", "x-api-key": apiKey }
+      });
+    } catch {
+      return json({ error: "OpenSea request failed." }, 502);
+    }
+    const raw = await response.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch {
+      return json({ error: "Invalid response from marketplace provider." }, 502);
+    }
+    if (response.status === 404) {
+      return json(action === "listings" ? { orders: [], listings: [] } : { orders: [], offers: [] });
+    }
+    if (!response.ok) {
+      return json({ error: "OpenSea request failed.", providerStatus: response.status,
+        details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502);
+    }
+    const order = data && typeof data === "object" ? data : null;
+    const isMatchingAsset = String(order?.asset?.contract || "").toLowerCase() === asset.contract &&
+      String(order?.asset?.identifier ?? "") === asset.tokenId;
+    const supported = isMatchingAsset && String(order?.status || "ACTIVE").toUpperCase() === "ACTIVE" &&
+      Boolean(order?.order_hash || order?.orderHash);
+    const orders = supported ? [order] : [];
+    return json(action === "listings" ? { ...data, orders, listings: orders } : { ...data, orders, offers: orders });
   }
 
   if (action !== "post-listing" && action !== "post-offer") return json({ error: "Unsupported write action." }, 400);
