@@ -165,7 +165,7 @@ export async function onRequestGet({request, env}) {
       else {
         const data = await response.json();
         const nfts = Array.isArray(data.nfts) ? data.nfts.map(n => normalizeAlchemyNft(n, contract)) : [];
-        if (nfts.length) {
+        if (nfts.length && (contract !== NODEMONKES || nfts.every(n => Boolean(n.image_url)))) {
           return json({
             nfts,
             next:typeof data.pageKey === "string" ? data.pageKey : null,
