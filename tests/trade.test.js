@@ -72,6 +72,7 @@ test("uses OpenSea cross-chain fulfillment for Base NFT purchases", async () => 
   globalThis.fetch = async (url, init) => {
     assert.ok(String(url).endsWith("/api/v2/listings/cross_chain_fulfillment_data"), "expected OpenSea cross-chain fulfillment endpoint");
     const payload = JSON.parse(init.body);
+    assert.equal(payload.chain, "base");
     assert.equal(payload.listings.length, 1);
     assert.equal(payload.listings[0].hash, HASH);
     assert.equal(payload.listings[0].chain, "base");
