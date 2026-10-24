@@ -186,7 +186,8 @@ export async function onRequest({ request, env }) {
       body: JSON.stringify(listingRequest)
     });
   }
-\n  if (request.method === "GET") {
+
+  if (request.method === "GET") {
     if (action !== "listings" && action !== "offers") return json({ error: "Unsupported read action." }, 400);
     const params = new URLSearchParams({
       asset_contract_address: asset.contract,
