@@ -32,4 +32,4 @@ Use established marketplace infrastructure (OpenSea-supported Seaport on Base) r
 - `POST /api/trade?action=post-listing&contract=<allowlisted-address>&tokenId=<decimal-id>`
 - `POST /api/trade?action=post-offer&contract=<allowlisted-address>&tokenId=<decimal-id>`
 
-POST bodies must contain the signed Seaport order's `parameters`, `protocol_address`, and `signature`. The route does not sign orders or send blockchain transactions. Test the exact OpenSea API schema and Base support before relying on it; configure `OPENSEA_API` or `OPENSEA_API_KEY` as a Cloudflare Pages secret.
+POST bodies must contain the signed Seaport order's `parameters`, `protocol_address`, and `signature`. The route does not sign orders or send blockchain transactions. Test the exact OpenSea API schema and Base support before relying on it; configure `OPENSEA_API` or `OPENSEA_API_KEY` as a Cloudflare Pages secret. Write endpoints also require `BASE_SEAPORT_ADDRESS` to be set to the verified Seaport contract address on Base; they fail closed if it is absent or mismatched.
