@@ -151,7 +151,6 @@ function validateListingActionsRequest(body, asset) {
       // nft_id alone is not sufficient for every API schema/version.
       contract: asset.contract,
       token_id: asset.tokenId,
-      nft_id: expectedNftId,
       quantity: 1,
       price: { currency: currency.toUpperCase(), amount }
     }],
