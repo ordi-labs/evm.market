@@ -1,4 +1,6 @@
-const ALLOWED = new Set(["0xb9110ba3266f4983193c0d5f55c792a94368af28","0x095b6ae2102094be8b5f06fac27275ddb9a8c70"]);
+const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
+const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
+const ALLOWED = new Set([PUNKS, NODEMONKES]);
 const json = (data, status = 200) => new Response(JSON.stringify(data), {status, headers: {"content-type":"application/json; charset=utf-8","cache-control":"public, max-age=20, s-maxage=60","x-content-type-options":"nosniff","access-control-allow-origin":"*"}});
 export async function onRequestGet({request, env}) {
   const url = new URL(request.url);
@@ -6,8 +8,34 @@ export async function onRequestGet({request, env}) {
   if (!ALLOWED.has(contract)) return json({error:"Unsupported collection contract."}, 400);
   const limit = Math.min(20, Math.max(1, Number.parseInt(url.searchParams.get("limit") || "20", 10) || 20));
   const next = url.searchParams.get("next");
-  if (next && (next.length > 2048 || !/^[A-Za-z0-9_=-]+$/.test(next))) return json({error:"Invalid pagination cursor."}, 400);
-  // Cloudflare Pages secrets are configured per project; accept the user's established name.
+  if (next && (next.length > 2048 || !/^[A-Za-z0-9_.~+/=-]+$/.test(next))) return json({error:"Invalid pagination cursor."}, 400);
+
+  // NodeMonkes uses Alchemy NFT API on Base; Base Punks keeps its existing OpenSea path.
+  if (contract === NODEMONKES) {
+    const alchemyKey = env.ETHEREUM_API;
+    if (!alchemyKey) return json({error:"Alchemy API secret (ETHEREUM_API) is not configured for this Pages environment."}, 503);
+    const upstream = new URL("https://base-mainnet.g.alchemy.com/nft/v3/" + encodeURIComponent(alchemyKey) + "/getNFTsForContract");
+    upstream.searchParams.set("contractAddress", contract);
+    upstream.searchParams.set("withMetadata", "true");
+    upstream.searchParams.set("limit", String(limit));
+    if (next) upstream.searchParams.set("pageKey", next);
+    let response;
+    try { response = await fetch(upstream, {headers:{"accept":"application/json"}}); }
+    catch { return json({error:"Alchemy is temporarily unreachable. Please retry."}, 502); }
+    if (!response.ok) return json({error:response.status === 429 ? "Alchemy rate limit reached. Please retry shortly." : "Alchemy NFT API request failed.", upstreamStatus:response.status}, response.status === 429 ? 429 : 502);
+    let data;
+    try { data = await response.json(); } catch { return json({error:"Alchemy returned an invalid response."}, 502); }
+    const nfts = Array.isArray(data.nfts) ? data.nfts.map(n => ({
+      identifier: String(n.tokenId ?? ""),
+      token_id: String(n.tokenId ?? ""),
+      name: n.name || n.raw?.metadata?.name || "",
+      description: n.description || n.raw?.metadata?.description || "",
+      image_url: n.image?.cachedUrl || n.image?.thumbnailUrl || n.image?.originalUrl || n.raw?.metadata?.image || "",
+      opensea_url: "https://opensea.io/assets/base/" + contract + "/" + encodeURIComponent(String(n.tokenId ?? ""))
+    })) : [];
+    return json({nfts, next:typeof data.pageKey === "string" ? data.pageKey : null, source:"alchemy"});
+  }
+
   const openSeaKey = env.OPENSEA_API || env.OPENSEA_API_KEY;
   if (!openSeaKey) return json({error:"OpenSea API secret (OPENSEA_API) is not configured for this Pages environment."}, 503);
   const upstream = new URL("https://api.opensea.io/api/v2/chain/base/contract/" + contract + "/nfts");
