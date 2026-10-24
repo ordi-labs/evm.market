@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090b0f">
+<meta name="robots" content="index,follow">
+<meta name="description" content="evm.market wallet permissions, security practices and external marketplace disclosures.">
+<title>Security &amp; wallet safety — evm.market</title>
+<style>
+:root{color-scheme:dark;--bg:#090b0f;--surface:#11151d;--line:#272e3b;--text:#f5f6f8;--muted:#aab3c2;--lime:#c4fa68}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{width:min(800px,calc(100% - 36px));margin:56px auto;padding:30px;border:1px solid var(--line);border-radius:20px;background:var(--surface)}
+a{color:var(--lime)}h1{font-size:clamp(30px,6vw,46px);line-height:1.1;letter-spacing:-.04em}h2{margin-top:32px;font-size:20px}p,li{color:var(--muted)}strong{color:var(--text)}.note{padding:14px 16px;border:1px solid #526d3b;border-radius:12px;background:#c4fa680a}
+</style>
+</head>
+<body>
+<main>
+<p><a href="/">← evm.market</a></p>
+<h1>Security &amp; wallet safety</h1>
+<p>evm.market is a Base NFT collection explorer for Base Punks and NodeMonkes. This page describes the wallet permissions and the boundaries of the marketplace experience.</p>
+<div class="note"><strong>Never share your Secret Recovery Phrase or private key.</strong> evm.market will never ask you to enter them into this site.</div>
+<h2>What wallet connection does</h2>
+<ul>
+<li>Connection requests access to the public wallet account you choose.</li>
+<li>The site reads the wallet's current network and performs a read-only ownership check for an NFT when needed.</li>
+<li>Connection does not ask you to sign a message or send a blockchain transaction.</li>
+<li>The site does not switch networks automatically. If your wallet is not on Base mainnet (chain ID 8453), change networks yourself in the wallet.</li>
+</ul>
+<h2>Marketplace actions</h2>
+<p>Buy, Make offer, Sell and List links open an external marketplace. The external marketplace may request signatures, approvals or transactions. Before accepting any wallet prompt, verify the collection contract, token ID, recipient, total price, fees, expiration and permission scope. Reject prompts you do not understand.</p>
+<p>The supported collection contracts are:</p>
+<ul>
+<li>Base Punks: <code>0xb9110ba3266f4983193c0d5f55c792a94368af28</code></li>
+<li>NodeMonkes: <code>0x095b6ae2102094be8b5f06fac27275ddb9a8c70a</code></li>
+</ul>
+<h2>Security reports and warnings</h2>
+<p>If your wallet or browser flags this domain, do not bypass the warning or sign anything. Please report the exact warning text, the wallet/browser name and version, the page URL and a screenshot with personal information removed through the wallet provider's official support channel. Do not include seed phrases, private keys or sensitive wallet data.</p>
+<p>For a possible MetaMask false positive, see the <a href="https://github.com/MetaMask/eth-phishing-detect" target="_blank" rel="noopener noreferrer">official MetaMask phishing-detection repository</a> and its <a href="https://github.com/MetaMask/eth-phishing-detect/blob/main/doc/lists-ref.md" target="_blank" rel="noopener noreferrer">domain review guidance</a>. A site owner cannot remove a warning from a wallet's reputation system by changing website code alone; the relevant provider must review and clear the classification.</p>
+<h2>Third-party services</h2>
+<p>NFT artwork and metadata may be served by third-party providers, and trading links lead to external marketplaces. Those services have their own security policies and wallet prompts. evm.market does not operate a native exchange contract and does not execute marketplace orders itself.</p>
+<p><a href="/">Return to evm.market</a></p>
+</main>
+</body>
+</html>
