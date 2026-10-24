@@ -232,7 +232,7 @@ async function connect(provider=null,label="wallet"){
  }catch(e){$("signatureGate").hidden=false;setNotice("<strong>Wallet verification failed.</strong> "+safe(e.message||e)+". Marketplace access remains locked; no transaction was sent.",true)}
 }
 function attachWalletListeners(provider){
- provider.on?.("accountsChanged",a=>{account=a[0]||null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=false;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=chain==="0x2105";render()}).catch(()=>render())}else{activeProvider=null;render()}});
+ provider.on?.("accountsChanged",a=>{account=a[0]||null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=false;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=normalizeChainId(chain)==="0x2105";render()}).catch(()=>render())}else{activeProvider=null;render()}});
  provider.on?.("chainChanged",()=>location.reload());
 }
 $("connect").addEventListener("click",()=>connect());
