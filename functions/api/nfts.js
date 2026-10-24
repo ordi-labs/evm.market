@@ -12,8 +12,21 @@ export async function onRequestGet({request, env}) {
 
   // NodeMonkes uses Alchemy NFT API on Base; Base Punks keeps its existing OpenSea path.
   if (contract === NODEMONKES) {
-    const alchemyKey = env.ETHEREUM_API;
-    if (!alchemyKey) return json({error:"Alchemy API secret (ETHEREUM_API) is not configured for this Pages environment."}, 503);
+    // Accept a raw Alchemy key or an Alchemy endpoint URL stored in any established secret name.
+    const configuredAlchemy = env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API;
+    if (!configuredAlchemy) return json({error:"Alchemy API secret is missing. Configure ALCHEMY_API_KEY (or ALCHEMY_API / ETHEREUM_API) in Cloudflare Pages Production."}, 503);
+    let alchemyKey = String(configuredAlchemy).trim();
+    try {
+      if (/^https?:\/\//i.test(alchemyKey)) {
+        const parsed = new URL(alchemyKey);
+        const segments = parsed.pathname.split("/").filter(Boolean);
+        const keyIndex = segments.findIndex(part => part === "v2" || part === "v3");
+        if (keyIndex >= 0 && segments[keyIndex + 1]) alchemyKey = segments[keyIndex + 1];
+        else return json({error:"ETHEREUM_API must contain an Alchemy API key or a supported Alchemy endpoint URL."}, 503);
+      }
+    } catch {
+      return json({error:"Alchemy API configuration is not a valid key or endpoint URL."}, 503);
+    }
     const upstream = new URL("https://base-mainnet.g.alchemy.com/nft/v3/" + encodeURIComponent(alchemyKey) + "/getNFTsForContract");
     upstream.searchParams.set("contractAddress", contract);
     upstream.searchParams.set("withMetadata", "true");
