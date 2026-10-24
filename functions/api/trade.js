@@ -177,6 +177,9 @@ export async function onRequest({ request, env }) {
       return openSeaFetch("/listings/cross_chain_fulfillment_data", env, {
         method: "POST",
         body: JSON.stringify({
+          // Include the target chain at the request root and explicitly on the
+          // listing and payment objects to satisfy OpenSea's chain validation.
+          chain: CHAIN,
           listings: [{
             hash: listing.order_hash,
             chain: CHAIN,
