@@ -184,11 +184,12 @@ export async function onRequest({ request, env }) {
         method: "POST",
         body: JSON.stringify({
           listing: {
-            order_hash: listing.order_hash,
+            hash: listing.hash,
             chain: CHAIN,
             protocol_address: listing.protocol_address
           },
           fulfiller: fulfillmentRequest.fulfiller,
+          consideration: fulfillmentRequest.consideration,
           include_optional_creator_fees: fulfillmentRequest.include_optional_creator_fees,
           ...(fulfillmentRequest.recipient ? { recipient: fulfillmentRequest.recipient } : {})
         })
