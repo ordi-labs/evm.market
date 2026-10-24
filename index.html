@@ -108,6 +108,8 @@ window.addEventListener("eip6963:announceProvider",event=>{
 function providerLabel(info){const raw=String(info?.name||"");const lower=raw.toLowerCase();if(lower.includes("metamask")||info?.rdns==="io.metamask")return "MetaMask";if(lower.includes("trust")||info?.rdns==="com.trustwallet.app")return "Trust Wallet";if(lower.includes("uniswap")||info?.rdns==="wallet.uniswap.org")return "Uniswap Wallet";if(lower.includes("base")||info?.rdns==="com.coinbase.wallet")return "Base Wallet";return String(raw||"Browser wallet").slice(0,80)}
 function closeWalletChooser(){$("walletChooser").classList.remove("open");$("walletChooser").setAttribute("aria-hidden","true")}
 async function chooseWalletProvider(){
+ // Hide the sign-in gate before opening the wallet picker so it cannot cover the picker.
+ $("signatureGate").hidden=true;
  discoveredWallets.clear();
  if(window.ethereum?.providers?.length){
   window.ethereum.providers.forEach((provider,index)=>discoveredWallets.set("legacy-"+index,{provider,info:{uuid:"legacy-"+index,name:provider.isMetaMask?"MetaMask":provider.isCoinbaseWallet?"Base Wallet":provider.isBraveWallet?"Brave Wallet":provider.isRabby?"Rabby":"Detected wallet"}}));
@@ -143,6 +145,9 @@ async function chooseWalletProvider(){
 let walletConnectProvider=null;
 async function connectWalletConnect(){
  try{
+  // Close the in-page picker and hide the sign-in gate before Reown opens its own modal.
+  closeWalletChooser();
+  $("signatureGate").hidden=true;
   setNotice("<strong>Opening WalletConnect…</strong> Choose a compatible wallet in the Reown modal. You will still review the message-signature request in your wallet.");
   if(!walletConnectProvider){
    const module=await import("https://esm.sh/@walletconnect/ethereum-provider@2.17.0?bundle");
@@ -158,9 +163,9 @@ async function connectWalletConnect(){
    });
   }
   await walletConnectProvider.connect();
-  closeWalletChooser();
   await connect(walletConnectProvider,"WalletConnect");
  }catch(error){
+  $("signatureGate").hidden=!accessVerified;
   setNotice("<strong>WalletConnect could not connect.</strong> "+safe(error?.message||error)+". Check the Reown Project ID, allowed domains and Cloudflare deployment.",true);
  }
 }
@@ -228,7 +233,7 @@ function disconnectWallet(){
  render();
 }
 $("disconnect").addEventListener("click",disconnectWallet);
-$("walletChooserClose").addEventListener("click",closeWalletChooser);
+$("walletChooserClose").addEventListener("click",()=>{closeWalletChooser();if(!accessVerified)$("signatureGate").hidden=false});
 $("walletChooser").addEventListener("click",event=>{if(event.target===$("walletChooser"))closeWalletChooser()});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeWalletChooser()});let deferredInstallPrompt=null;const installButton=$("installApp");window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event;installButton.hidden=false;installButton.classList.add("is-visible")});installButton.addEventListener("click",async()=>{if(!deferredInstallPrompt){setNotice("<strong>Install from your browser menu.</strong> On iPhone/iPad, use Share → Add to Home Screen; on desktop or Android, use Install app when offered.");return}deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;installButton.hidden=true;installButton.classList.remove("is-visible")});window.addEventListener("appinstalled",()=>{installButton.hidden=true;installButton.classList.remove("is-visible");setNotice("<strong>evm.market installed.</strong> Open it from your apps.")});if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}load(true);
 </script>
