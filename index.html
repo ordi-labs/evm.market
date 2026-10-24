@@ -10,7 +10,7 @@
 </head>
 <body>
 <div class="topline"><div class="wrap"><span><strong>BASE MAINNET</strong> &nbsp;·&nbsp; A home for onchain culture</span><span>Independent collector experience ↗</span></div></div>
-<header class="wrap nav"><a class="logo" href="#" aria-label="evm.market home">evm<em>.</em>market</a><nav class="navlinks"><a href="#market">Explore</a><a href="#collections">Collections</a><a href="https://basescan.org" target="_blank" rel="noopener noreferrer">Base explorer ↗</a></nav><div class="navright"><span class="network"><i class="green-dot"></i> Base network</span><button id="installApp" class="install-app" type="button" hidden>Install app ↓</button><button id="connect" class="primary">Connect wallet ↗</button></div></header>
+<header class="wrap nav"><a class="logo" href="#" aria-label="evm.market home">evm<em>.</em>market</a><nav class="navlinks"><a href="#market">Explore</a><a href="#collections">Collections</a><a href="https://basescan.org" target="_blank" rel="noopener noreferrer">Base explorer ↗</a></nav><div class="navright"><span class="network"><i class="green-dot"></i> Base network</span><button id="installApp" class="install-app" type="button" hidden>Install app ↓</button><button id="connect" class="primary">Connect wallet ↗</button><button id="disconnect" type="button" hidden>Disconnect wallet</button></div></header>
 <main class="wrap">
 <section class="hero"><div><div class="eyebrow">Digital collectibles · Base</div><h1>Culture is<br>what you <span>collect.</span></h1><p>A considered space for iconic onchain collections. Explore Base Punks and NodeMonkes, discover your next favorite, and trade through supported marketplace rails.</p><div class="hero-actions"><button class="primary" onclick="document.getElementById('market').scrollIntoView({behavior:'smooth'})">Explore collections ↓</button><a href="https://www.base.org/" target="_blank" rel="noopener noreferrer"><button>Discover Base ↗</button></a></div></div><aside class="hero-aside"><div class="feature-label">The collection edit · 001</div><div class="feature-big">Own a piece<br>of the internet.</div><div class="feature-bottom"><small>Two collections.<br>One onchain home.</small><span class="feature-number">20,000 ITEMS</span></div></aside></section>
 <section class="metrics" aria-label="Marketplace overview"><div class="metric"><strong>20,000</strong><span>Collection supply</span></div><div class="metric"><strong>02</strong><span>Curated collections</span></div><div class="metric"><strong>Base</strong><span>Network</span></div></section>
@@ -116,6 +116,7 @@ async function connect(provider=null,label="wallet"){
   walletOnBase=chain==="0x2105";
   ownershipCache.clear();
   $("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";
+  $("disconnect").hidden=!account;
   attachWalletListeners(provider);
   if(!account){setNotice("<strong>Wallet not connected.</strong> No account was returned.",true);render();return}
   if(!walletOnBase){
@@ -127,10 +128,18 @@ async function connect(provider=null,label="wallet"){
  }catch(e){setNotice("<strong>Wallet connection failed.</strong> "+safe(e.message||e),true)}
 }
 function attachWalletListeners(provider){
- provider.on?.("accountsChanged",a=>{account=a[0]||null;walletOnBase=false;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=chain==="0x2105";render()}).catch(()=>render())}else render()});
+ provider.on?.("accountsChanged",a=>{account=a[0]||null;walletOnBase=false;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=chain==="0x2105";render()}).catch(()=>render())}else{activeProvider=null;render()}});
  provider.on?.("chainChanged",()=>location.reload());
 }
 $("connect").addEventListener("click",()=>connect());
+function disconnectWallet(){
+ account=null;walletOnBase=false;activeProvider=null;ownershipCache.clear();
+ $("connect").textContent="Connect wallet ↗";$("disconnect").hidden=true;
+ closeWalletChooser();
+ setNotice("<strong>Wallet disconnected from this site.</strong> This clears the app’s local connection state; it does not revoke the site’s permissions in your wallet. Manage connected-site permissions in your wallet if you want to revoke them.");
+ render();
+}
+$("disconnect").addEventListener("click",disconnectWallet);
 $("walletChooserClose").addEventListener("click",closeWalletChooser);
 $("walletChooser").addEventListener("click",event=>{if(event.target===$("walletChooser"))closeWalletChooser()});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeWalletChooser()});let deferredInstallPrompt=null;const installButton=$("installApp");window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event;installButton.hidden=false;installButton.classList.add("is-visible")});installButton.addEventListener("click",async()=>{if(!deferredInstallPrompt){setNotice("<strong>Install from your browser menu.</strong> On iPhone/iPad, use Share → Add to Home Screen; on desktop or Android, use Install app when offered.");return}deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;installButton.hidden=true;installButton.classList.remove("is-visible")});window.addEventListener("appinstalled",()=>{installButton.hidden=true;installButton.classList.remove("is-visible");setNotice("<strong>evm.market installed.</strong> Open it from your apps.")});if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}load(true);
