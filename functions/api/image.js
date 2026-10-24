@@ -5,8 +5,8 @@ function safeImageUrl(value) {
   let url;
   try { url = new URL(value); } catch { return null; }
   if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
-  const host = url.hostname.toLowerCase();
-  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return null;
+  const host = url.hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+  if (!host || host.includes(":") || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return null;
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
     const parts = host.split(".").map(Number);
     if (parts.some(n => n > 255) || parts[0] === 10 || parts[0] === 127 ||
@@ -14,7 +14,6 @@ function safeImageUrl(value) {
         (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
         (parts[0] === 192 && parts[1] === 168) || parts[0] === 0) return null;
   }
-  if (host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:")) return null;
   return url;
 }
 
