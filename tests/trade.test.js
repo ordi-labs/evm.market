@@ -94,3 +94,51 @@ test("fails closed when the server-side OpenSea API key is missing", async () =>
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /not configured/);
 });
+
+
+test("validates listing-action requests before contacting OpenSea", async () => {
+  const body = {
+    address: "0x1111111111111111111111111111111111111111",
+    items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0.05" } }]
+  };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.match(String(url), /api\.opensea\.io\/api\/v2\/listings\/actions$/);
+    assert.equal(init.method, "POST");
+    assert.equal(JSON.parse(init.body).items[0].nft_id, "base/" + CONTRACT + "/1");
+    return new Response(JSON.stringify({ steps: [] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await onRequest({
+      request: request("listing-actions", body),
+      env: { OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { steps: [] });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rejects listing-action requests for a mismatched NFT", async () => {
+  const response = await onRequest({
+    request: request("listing-actions", {
+      address: "0x1111111111111111111111111111111111111111",
+      items: [{ nft_id: "base/" + CONTRACT + "/2", quantity: 1, price: { currency: "ETH", amount: "0.05" } }]
+    }),
+    env: { OPENSEA_API: "test-key" }
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /must match/);
+});
+
+test("rejects non-positive listing prices", async () => {
+  const response = await onRequest({
+    request: request("listing-actions", {
+      address: "0x1111111111111111111111111111111111111111",
+      items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0" } }]
+    }),
+    env: { OPENSEA_API: "test-key" }
+  });
+  assert.equal(response.status, 400);
+});

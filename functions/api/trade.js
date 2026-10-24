@@ -115,6 +115,32 @@ function validateFulfillmentRequest(body, asset, side, env) {
   };
 }
 
+
+function validateListingActionsRequest(body, asset) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A listing request object is required.");
+  const address = String(body.address || "").trim();
+  if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new Error("A valid connected seller wallet address is required.");
+  if (!Array.isArray(body.items) || body.items.length !== 1) throw new Error("Exactly one NFT listing item is supported.");
+  const item = body.items[0];
+  if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("A listing item is required.");
+  const nftId = String(item.nft_id || item.nftId || "").trim();
+  const expectedNftId = "base/" + asset.contract + "/" + asset.tokenId;
+  if (nftId.toLowerCase() !== expectedNftId.toLowerCase()) throw new Error("The listing item must match the requested allowlisted Base NFT and token ID.");
+  if (item.quantity !== 1) throw new Error("Only a quantity of one NFT is supported.");
+  const price = item.price;
+  if (!price || typeof price !== "object" || Array.isArray(price)) throw new Error("A positive listing price is required.");
+  const currency = String(price.currency || "").trim();
+  const amount = String(price.amount ?? "").trim();
+  if (!/^(ETH|WETH)$/i.test(currency)) throw new Error("Only ETH or WETH listing currency is currently supported.");
+  if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(amount) || !/[1-9]/.test(amount)) throw new Error("Listing price must be a positive decimal amount.");
+  return {
+    address,
+    items: [{ nft_id: expectedNftId, quantity: 1, price: { currency: currency.toUpperCase(), amount } }],
+    use_creator_fee: body.use_creator_fee !== false,
+    ...(body.taker && /^0x[0-9a-f]{40}$/i.test(String(body.taker)) ? { taker: String(body.taker) } : {})
+  };
+}
+
 export async function onRequest({ request, env }) {
   if (request.method !== "GET" && request.method !== "POST") {
     return json({ error: "Method not allowed." }, 405, { allow: "GET, POST" });
@@ -143,6 +169,21 @@ export async function onRequest({ request, env }) {
     return openSeaFetch("/" + (side === "listing" ? "listings" : "offers") + "/fulfillment_data", env, {
       method: "POST",
       body: JSON.stringify(fulfillmentRequest)
+    });
+  }
+
+
+  if (request.method === "POST" && action === "listing-actions") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "Request body must be valid JSON." }, 400); }
+    let listingRequest;
+    try { listingRequest = validateListingActionsRequest(body, asset); }
+    catch (error) { return json({ error: error.message }, 400); }
+    // OpenSea returns the ordered approval/signing steps. The client must display
+    // each transaction and obtain explicit wallet confirmation; this endpoint never signs.
+    return openSeaFetch("/listings/actions", env, {
+      method: "POST",
+      body: JSON.stringify(listingRequest)
     });
   }
 
