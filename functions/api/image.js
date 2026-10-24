@@ -4,8 +4,8 @@ const MAX_REDIRECTS = 4;
 function safeImageUrl(value) {
   let url;
   try { url = new URL(value); } catch { return null; }
-  if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
-  const host = url.hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password || url.port) return null;
+  const host = url.hostname.toLowerCase();
   if (!host || host.includes(":") || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return null;
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
     const parts = host.split(".").map(Number);
