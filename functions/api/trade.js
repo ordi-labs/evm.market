@@ -146,6 +146,13 @@ function validateListingActionsRequest(body, asset) {
   const amount = String(price.amount ?? "").trim();
   if (!/^(ETH|WETH)$/i.test(currency)) throw new Error("Only ETH or WETH listing currency is currently supported.");
   if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(amount) || !/[1-9]/.test(amount)) throw new Error("Listing price must be a positive decimal amount.");
+  const expirationTime = Number(item.expiration_time);
+  const now = Math.floor(Date.now() / 1000);
+  const minExpiration = now + 15 * 60;
+  const maxExpiration = now + 180 * 24 * 60 * 60;
+  if (!Number.isSafeInteger(expirationTime) || expirationTime < minExpiration || expirationTime > maxExpiration) {
+    throw new Error("Listing expiration must be between 15 minutes and 6 months from now.");
+  }
   return {
     address,
     items: [{
@@ -154,6 +161,7 @@ function validateListingActionsRequest(body, asset) {
       contract: asset.contract,
       token_id: asset.tokenId,
       quantity: 1,
+      expiration_time: expirationTime,
       price: { currency: currency.toUpperCase(), amount }
     }],
     use_creator_fee: body.use_creator_fee !== false,
