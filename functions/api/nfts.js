@@ -188,7 +188,9 @@ export async function onRequestGet({request, env}) {
   // Alchemy is primary; OpenSea is a server-side fallback so an Alchemy
   // outage or empty index does not blank the collection page.
   let alchemyError = null;
-  const configuredAlchemy = env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API;
+  const configuredAlchemy = contract === NODEMONKES
+    ? (env.ETHEREUM_API || env.ALCHEMY_API_KEY || env.ALCHEMY_API)
+    : (env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API);
   if (configuredAlchemy && !isOpenSeaCursor) {
     try {
       const key = alchemyKeyFromConfig(configuredAlchemy);
