@@ -76,6 +76,31 @@ function normalizeAlchemyNft(n, contract) {
   };
 }
 
+async function resolveAlchemyMetadata(nft) {
+  const raw = nft?.raw || {};
+  const existing = raw.metadata || nft?.metadata || {};
+  const tokenUri = nft?.tokenUri;
+  const candidates = [
+    typeof tokenUri === "string" ? tokenUri : "",
+    tokenUri?.gateway,
+    tokenUri?.raw
+  ].map(imageUrl).filter(value => /^https?:\/\//i.test(value));
+  const image = existing.image || existing.image_url || existing.imageURI || existing.imageUri || existing.properties?.image;
+  if (typeof image === "string" && image.trim()) return nft;
+  for (const uri of candidates) {
+    try {
+      const response = await fetch(uri, {headers: {"accept":"application/json"}});
+      if (!response.ok) continue;
+      const metadata = await response.json();
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) continue;
+      return {...nft, raw: {...raw, metadata: {...existing, ...metadata}}, metadata: {...(nft.metadata || {}), ...metadata}};
+    } catch {
+      // Try the next Alchemy-provided metadata URI.
+    }
+  }
+  return nft;
+}
+
 function normalizeOpenSeaNft(n, contract) {
   const tokenId = String(n.identifier ?? n.token_id ?? n.tokenId ?? "");
   const metadata = n.metadata || {};
@@ -164,7 +189,7 @@ export async function onRequestGet({request, env}) {
       if (!response.ok) alchemyError = response.status;
       else {
         const data = await response.json();
-        const nfts = Array.isArray(data.nfts) ? data.nfts.map(n => normalizeAlchemyNft(n, contract)) : [];
+        const nfts = Array.isArray(data.nfts) ? await Promise.all(data.nfts.map(async n => normalizeAlchemyNft(await resolveAlchemyMetadata(n), contract))) : [];
         if (nfts.length && (contract !== NODEMONKES || nfts.every(n => Boolean(n.image_url)))) {
           return json({
             nfts,
