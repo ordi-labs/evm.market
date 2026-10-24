@@ -136,6 +136,7 @@ test("validates listing-action requests before contacting OpenSea", async () => 
     assert.equal(init.method, "POST");
     assert.equal(JSON.parse(init.body).chain, "base");
     assert.equal(JSON.parse(init.body).items[0].nft_id, "base/" + CONTRACT + "/1");
+    assert.equal(JSON.parse(init.body).items[0].chain, "base");
     return new Response(JSON.stringify({ steps: [] }), { status: 200, headers: { "content-type": "application/json" } });
   };
   try {
