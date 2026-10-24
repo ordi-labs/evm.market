@@ -133,7 +133,7 @@ test("fails closed when the server-side OpenSea API key is missing", async () =>
 test("validates listing-action requests before contacting OpenSea", async () => {
   const body = {
     address: "0x1111111111111111111111111111111111111111",
-    items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0.05" } }]
+    items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, expiration_time: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, price: { currency: "ETH", amount: "0.05" } }]
   };
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -144,6 +144,8 @@ test("validates listing-action requests before contacting OpenSea", async () => 
     assert.equal(Object.hasOwn(JSON.parse(init.body).items[0], "nft_id"), false, "OpenSea listing-actions schema rejects nft_id");
     assert.equal(JSON.parse(init.body).items[0].contract, CONTRACT);
     assert.equal(JSON.parse(init.body).items[0].token_id, "1");
+    assert.ok(JSON.parse(init.body).items[0].expiration_time > Math.floor(Date.now() / 1000));
+    assert.ok(JSON.parse(init.body).items[0].expiration_time <= Math.floor(Date.now() / 1000) + 180 * 24 * 60 * 60);
     return new Response(JSON.stringify({ steps: [] }), { status: 200, headers: { "content-type": "application/json" } });
   };
   try {
@@ -242,4 +244,17 @@ test("returns an empty order list when OpenSea has no best offer", async () => {
     assert.deepEqual(data.orders, []);
     assert.deepEqual(data.offers, []);
   } finally { globalThis.fetch = originalFetch; }
+});
+
+
+test("rejects listing expirations beyond six months", async () => {
+  const response = await onRequest({
+    request: request("listing-actions", {
+      address: "0x1111111111111111111111111111111111111111",
+      items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, expiration_time: Math.floor(Date.now() / 1000) + 181 * 24 * 60 * 60, price: { currency: "ETH", amount: "0.05" } }]
+    }),
+    env: { OPENSEA_API: "test-key" }
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /between 15 minutes and 6 months/);
 });
