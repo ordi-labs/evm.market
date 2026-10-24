@@ -1,6 +1,7 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const ALLOWED = new Set([PUNKS, NODEMONKES]);
+const COLLECTION_SLUGS = new Map([[PUNKS, "base-punks"], [NODEMONKES, "nodemonkes"]]);
 const OPENSEA_API = "https://api.opensea.io/api/v2";
 const CHAIN = "base";
 const PROTOCOL = "seaport";
@@ -189,12 +190,23 @@ export async function onRequest({ request, env }) {
 
   if (request.method === "GET") {
     if (action !== "listings" && action !== "offers") return json({ error: "Unsupported read action." }, 400);
-    const params = new URLSearchParams({
-      asset_contract_address: asset.contract,
-      token_ids: asset.tokenId,
-      limit: "10"
-    });
-    return openSeaFetch("/orders/" + CHAIN + "/" + PROTOCOL + "/" + action + "?" + params.toString(), env);
+    // OpenSea removed GET /orders/{chain}/{protocol}/{listings|offers} on May 7, 2026.
+    // Use the supported per-NFT collection endpoints instead of a route that returns 404.
+    const slug = COLLECTION_SLUGS.get(asset.contract);
+    if (!slug) return json({ error: "No OpenSea collection slug is configured for this NFT contract." }, 400);
+    const endpoint = action === "listings" ? "listings" : "offers";
+    const suffix = action === "listings" ? "/best" : "";
+    const upstream = await openSeaFetch("/" + endpoint + "/collection/" + encodeURIComponent(slug) + "/nfts/" + encodeURIComponent(asset.tokenId) + suffix, env);
+    if (!upstream.ok) return upstream;
+    let data;
+    try { data = await upstream.clone().json(); } catch { return json({ error: "Invalid response from marketplace provider." }, 502); }
+    // Keep the browser's stable response contract while the upstream endpoints differ:
+    // best listing is a single object; NFT offers are returned in an offers array.
+    if (action === "listings") {
+      if (!data || typeof data !== "object" || !data.order_hash) return json({ orders: [] });
+      return json({ orders: [data] });
+    }
+    return json({ orders: Array.isArray(data?.offers) ? data.offers : [] });
   }
 
   if (action !== "post-listing" && action !== "post-offer") return json({ error: "Unsupported write action." }, 400);
