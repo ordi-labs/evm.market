@@ -19,9 +19,9 @@ function json(data, status = 200, extraHeaders = {}) {
   });
 }
 
-function sameOrigin(request) {
+function sameOrigin(request, requireOrigin = false) {
   const origin = request.headers.get("origin");
-  if (!origin) return true; // Non-browser clients are still constrained by validation and API credentials.
+  if (!origin) return !requireOrigin;
   try {
     return new URL(origin).origin === new URL(request.url).origin;
   } catch {
@@ -46,20 +46,24 @@ function findAssetItem(items, contract, tokenId) {
   });
 }
 
-function validateSignedOrder(body, contract, tokenId, side) {
+function validateSignedOrder(body, contract, tokenId, side, env) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A signed order object is required.");
   const parameters = body.parameters;
   const signature = body.signature;
   const protocolAddress = String(body.protocol_address || body.protocolAddress || "").toLowerCase();
+  const expectedProtocol = String(env.BASE_SEAPORT_ADDRESS || "").trim().toLowerCase();
+  if (!expectedProtocol || !/^0x[0-9a-f]{40}$/i.test(expectedProtocol)) {
+    throw new Error("BASE_SEAPORT_ADDRESS must be configured with the verified Base Seaport contract address.");
+  }
   if (!parameters || typeof parameters !== "object" || Array.isArray(parameters)) throw new Error("Order parameters are required.");
   if (!/^0x[0-9a-f]{128}(?:[0-9a-f]{2})?$/i.test(String(signature || ""))) throw new Error("A 64- or 65-byte order signature is required.");
-  if (!/^0x[0-9a-f]{40}$/i.test(protocolAddress)) throw new Error("A valid Seaport protocol address is required.");
+  if (!/^0x[0-9a-f]{40}$/i.test(protocolAddress) || protocolAddress !== expectedProtocol) throw new Error("Order protocol address does not match the configured Base Seaport contract.");
   const nftItems = side === "listing" ? parameters.offer : parameters.consideration;
   if (!findAssetItem(nftItems, contract, tokenId)) throw new Error("The signed order does not include the requested allowlisted NFT and token ID on the expected side.");
   const counterItems = side === "listing" ? parameters.consideration : parameters.offer;
   if (!Array.isArray(counterItems) || counterItems.length === 0) throw new Error("Order consideration/payment items are required.");
   if (!/^0x[0-9a-f]{40}$/i.test(String(parameters.offerer || ""))) throw new Error("Order offerer address is invalid.");
-  return { parameters, signature, protocol_address: protocolAddress };
+  return { parameters, protocol_address: protocolAddress, signature };
 }
 
 async function openSeaFetch(path, env, init = {}) {
@@ -78,17 +82,17 @@ async function openSeaFetch(path, env, init = {}) {
   let data;
   try { data = body ? JSON.parse(body) : {}; } catch { data = { error: "Invalid response from marketplace provider." }; }
   if (!response.ok) {
-    // Do not reflect provider headers or credentials to the browser.
     return json({ error: "OpenSea request failed.", providerStatus: response.status, details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502);
   }
   return json(data);
 }
 
 export async function onRequest({ request, env }) {
-  if (!sameOrigin(request)) return json({ error: "Cross-origin request denied." }, 403);
   if (request.method !== "GET" && request.method !== "POST") {
     return json({ error: "Method not allowed." }, 405, { allow: "GET, POST" });
   }
+  if (!sameOrigin(request, request.method === "POST")) return json({ error: "Same-origin request required." }, 403);
+
   const url = new URL(request.url);
   const action = url.searchParams.get("action") || (request.method === "POST" ? "post-listing" : "listings");
   let asset;
@@ -113,13 +117,13 @@ export async function onRequest({ request, env }) {
   try { body = await request.json(); } catch { return json({ error: "Request body must be valid JSON." }, 400); }
   let order;
   try {
-    order = validateSignedOrder(body, asset.contract, asset.tokenId, action === "post-listing" ? "listing" : "offer");
+    order = validateSignedOrder(body, asset.contract, asset.tokenId, action === "post-listing" ? "listing" : "offer", env);
   } catch (error) {
     return json({ error: error.message }, 400);
   }
 
-  // The browser must create and sign the Seaport order with the user's wallet.
-  // This endpoint never accepts private keys and never signs or submits a blockchain transaction.
+  // The user's wallet must create and sign the order. This API never receives private keys
+  // and never signs or submits a blockchain transaction.
   return openSeaFetch("/orders/" + CHAIN + "/" + PROTOCOL + "/" + (action === "post-listing" ? "listings" : "offers"), env, {
     method: "POST",
     body: JSON.stringify(order)
