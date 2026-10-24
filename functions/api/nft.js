@@ -28,8 +28,17 @@ function normalizeImage(value) {
 }
 function hasUsableImage(nft) {
   const metadata = nft?.metadata || nft?.raw?.metadata || {};
+  const rawMetadata = nft?.raw?.metadata || {};
   const image = nft?.image;
-  const candidates = [image?.cachedUrl, image?.originalUrl, image?.thumbnailUrl, image?.pngUrl, typeof image === "string" ? image : "", nft?.image_url, nft?.display_image_url, metadata.image, metadata.image_url, metadata.imageURI, metadata.imageUri];
+  const media = Array.isArray(nft?.media) ? nft.media[0] || {} : {};
+  const candidates = [
+    image?.cachedUrl, image?.originalUrl, image?.thumbnailUrl, image?.pngUrl,
+    typeof image === "string" ? image : "",
+    nft?.image_url, nft?.display_image_url, metadata.image, metadata.image_url,
+    metadata.imageURI, metadata.imageUri, metadata.properties?.image,
+    rawMetadata.image, media.gateway, media.raw, media.thumbnail, media.uri,
+    nft?.tokenUri?.gateway, nft?.tokenUri?.raw
+  ];
   return candidates.some(value => typeof value === "string" && value.trim().length > 0);
 }
 export async function onRequestGet({request, env}) {
@@ -129,10 +138,15 @@ export async function onRequestGet({request, env}) {
     score: rarityData.score ?? rarityData.statistical_score,
     source: text(rarityData.source || (openSeaNft?.rarity ? "OpenSea" : "Alchemy"))
   } : null;
+  const media = Array.isArray(nft.media) ? nft.media[0] || {} : {};
+  const rawMetadata = nft.raw?.metadata || {};
   const image = normalizeImage(
-    nft.image?.cachedUrl || nft.image?.originalUrl || nft.image?.thumbnailUrl ||
-    nft.image_url || (typeof nft.image === "string" ? nft.image : "") ||
-    metadata.image || openSeaNft?.image_url || ""
+    nft.image?.cachedUrl || nft.image?.originalUrl || nft.image?.thumbnailUrl || nft.image?.pngUrl ||
+    nft.image_url || nft.display_image_url || (typeof nft.image === "string" ? nft.image : "") ||
+    metadata.image || metadata.image_url || metadata.imageURI || metadata.imageUri ||
+    metadata.properties?.image || rawMetadata.image ||
+    media.gateway || media.raw || media.thumbnail || media.uri ||
+    nft.tokenUri?.gateway || nft.tokenUri?.raw || openSeaNft?.image_url || ""
   );
 
   return json({
