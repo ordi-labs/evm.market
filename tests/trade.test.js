@@ -100,13 +100,23 @@ test("validates listing-action requests before contacting OpenSea", async () => 
     address: "0x1111111111111111111111111111111111111111",
     items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0.05" } }]
   };
-  const response = await onRequest({
-    request: request("listing-actions", body),
-    env: { OPENSEA_API: "test-key" }
-  });
-  // A valid request reaches the provider; with this test's default fetch, the provider
-  // response may fail, but it must not be rejected by local request validation.
-  assert.notEqual(response.status, 400);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.match(String(url), /api\\.opensea\\.io\\/api\\/v2\\/listings\\/actions$/);
+    assert.equal(init.method, "POST");
+    assert.equal(JSON.parse(init.body).items[0].nft_id, "base/" + CONTRACT + "/1");
+    return new Response(JSON.stringify({ steps: [] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await onRequest({
+      request: request("listing-actions", body),
+      env: { OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { steps: [] });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("rejects listing-action requests for a mismatched NFT", async () => {
