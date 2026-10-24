@@ -139,8 +139,8 @@ test("validates listing-action requests before contacting OpenSea", async () => 
   globalThis.fetch = async (url, init) => {
     assert.match(String(url), /api\.opensea\.io\/api\/v2\/listings\/actions$/);
     assert.equal(init.method, "POST");
-    assert.equal(Object.hasOwn(JSON.parse(init.body), "chain"), false, "OpenSea listing-actions schema rejects chain");
-    assert.equal(Object.hasOwn(JSON.parse(init.body).items[0], "chain"), false, "OpenSea listing item schema rejects chain");
+    assert.equal(Object.hasOwn(JSON.parse(init.body), "chain"), false, "chain belongs on the item, not the top-level payload");
+    assert.equal(JSON.parse(init.body).items[0].chain, "base", "OpenSea requires chain on each listing item");
     assert.equal(Object.hasOwn(JSON.parse(init.body).items[0], "nft_id"), false, "OpenSea listing-actions schema rejects nft_id");
     assert.equal(JSON.parse(init.body).items[0].contract, CONTRACT);
     assert.equal(JSON.parse(init.body).items[0].token_id, "1");
