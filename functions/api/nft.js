@@ -101,7 +101,7 @@ export async function onRequestGet({request, env}) {
     } catch { raribleError = "network"; }
   }
 
-  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : alchemyNft ? "alchemy" : openSeaNft ? "opensea" : raribleNft ? "rarible" : null;
+  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : (alchemyNft && hasUsableImage(alchemyNft)) ? "alchemy" : openSeaNft ? "opensea" : raribleNft ? "rarible" : alchemyNft ? "alchemy" : null;
   if (!source) {
     const status = alchemyError === 429 || openSeaError === 429 ? 429 : 502;
     return json({
