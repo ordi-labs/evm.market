@@ -147,7 +147,7 @@ async function load(reset=false,forceRefresh=false){if(reset){page=1;cursors={1:
 document.querySelectorAll("[data-collection]").forEach(b=>b.addEventListener("click",()=>{selected=b.dataset.collection;$("traitType").value="";$("traitValue").value="";document.querySelectorAll("[data-collection]").forEach(x=>x.classList.toggle("active",x===b));load(true,selected==="nodemonkes")}));$("search").addEventListener("input",render);$("sort").addEventListener("change",render);$("traitType").addEventListener("change",()=>{const values=$("traitValue");values.value="";render()});$("traitValue").addEventListener("change",render);$("clearTraits").addEventListener("click",()=>{$("traitType").value="";$("traitValue").value="";render()});$("refresh").addEventListener("click",()=>load(false,true));$("prev").addEventListener("click",()=>{if(page>1){page--;load(false)}});$("next").addEventListener("click",()=>{if(nextCursor){page++;load(false)}});
 let activeProvider=null;let connectInFlight=null;const listenerProviders=new WeakSet();
 function closeWalletChooser(){$("walletChooser").classList.remove("open");$("walletChooser").setAttribute("aria-hidden","true")}
-async function chooseWalletProvider(){
+async async function chooseWalletProvider(){
  $("signatureGate").hidden=true;
  const chooser=$("walletChooser"),list=$("walletOptions");
  chooser.classList.add("open");chooser.setAttribute("aria-hidden","false");
