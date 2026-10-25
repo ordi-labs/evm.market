@@ -170,8 +170,9 @@ async function chooseWalletProvider(){
 }
 let walletConnectProvider=null;
 async function connectWalletConnect(){
- // The WalletConnect QR modal must not sit behind the site's own full-screen chooser.
+ // Remove both site overlays before loading Reown; either can obscure its QR modal.
  closeWalletChooser();
+ $("signatureGate").hidden=true;
  walletChooserStatus("Loading WalletConnect…");
  setNotice("<strong>Opening WalletConnect…</strong> The WalletConnect window should appear shortly.");
  try{
