@@ -174,7 +174,7 @@ async function connectWalletConnect(){
     projectId:"f981fcdc036a0a273c655b90030221e4",
     chains:[8453],
     showQrModal:true,
-    methods:["eth_sendTransaction","personal_sign","eth_signTypedData","eth_signTypedData_v4"],
+    methods:["eth_accounts","eth_requestAccounts","eth_chainId","wallet_switchEthereumChain","wallet_addEthereumChain","eth_sendTransaction","personal_sign","eth_signTypedData","eth_signTypedData_v4"],
     events:["chainChanged","accountsChanged"],
     metadata:{name:"evm.market",description:"NFT marketplace for Base",url:location.origin,icons:[location.origin+"/icons/icon.svg"]}
    });
