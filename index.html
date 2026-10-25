@@ -191,6 +191,8 @@ async function chooseWalletProvider(){
  list.append(wcButton);
  if(!injected.length)walletChooserStatus("No browser wallet detected. Choose WalletConnect, or install/enable a compatible EVM wallet extension.");
 }
+// Reown / WalletConnect Project ID is public client configuration, not a private key.
+const REOWN_PROJECT_ID="f981fcdc036a0a273c655b90030221e4";
 let walletConnectProvider=null;
 async function connectWalletConnect(){
  // Remove both site overlays before loading Reown; either can obscure its QR modal.
@@ -202,9 +204,10 @@ async function connectWalletConnect(){
   if(!walletConnectProvider){
    const module=await import("https://esm.sh/@walletconnect/ethereum-provider@2.17.0?bundle");
    const EthereumProvider=module.EthereumProvider||module.default?.EthereumProvider;
-   if(!EthereumProvider)throw new Error("WalletConnect provider module did not load.");
+   if(!EthereumProvider)throw new Error("WalletConnect provider module did not load. Check network access to esm.sh and try again.");
+   if(!REOWN_PROJECT_ID||REOWN_PROJECT_ID.length<20)throw new Error("Reown Project ID is missing. Configure REOWN_PROJECT_ID before connecting.");
    walletConnectProvider=await EthereumProvider.init({
-    projectId:"f981fcdc036a0a273c655b90030221e4",
+    projectId:REOWN_PROJECT_ID,
     chains:[8453],
     showQrModal:true,
     methods:["eth_sendTransaction","personal_sign","eth_signTypedData","eth_signTypedData_v4"],
