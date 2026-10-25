@@ -170,8 +170,10 @@ async function chooseWalletProvider(){
 }
 let walletConnectProvider=null;
 async function connectWalletConnect(){
+ // The WalletConnect QR modal must not sit behind the site's own full-screen chooser.
+ closeWalletChooser();
  walletChooserStatus("Loading WalletConnect…");
- setNotice("<strong>Opening WalletConnect…</strong> The wallet chooser should appear shortly.");
+ setNotice("<strong>Opening WalletConnect…</strong> The WalletConnect window should appear shortly.");
  try{
   if(!walletConnectProvider){
    const module=await import("https://esm.sh/@walletconnect/ethereum-provider@2.17.0?bundle");
@@ -181,19 +183,20 @@ async function connectWalletConnect(){
     projectId:"f981fcdc036a0a273c655b90030221e4",
     chains:[8453],
     showQrModal:true,
-    methods:["eth_accounts","eth_requestAccounts","eth_chainId","wallet_switchEthereumChain","wallet_addEthereumChain","eth_sendTransaction","personal_sign","eth_signTypedData","eth_signTypedData_v4"],
+    methods:["eth_sendTransaction","personal_sign","eth_signTypedData","eth_signTypedData_v4"],
     events:["chainChanged","accountsChanged"],
     metadata:{name:"evm.market",description:"NFT marketplace for Base",url:location.origin,icons:[location.origin+"/icons/icon.svg"]}
    });
   }
   walletChooserStatus("WalletConnect loaded. Choose your mobile wallet in the WalletConnect modal.");
   await walletConnectProvider.connect();
-  closeWalletChooser();
   $("signatureGate").hidden=true;
   walletChooserStatus("");
   await connect(walletConnectProvider,"WalletConnect");
  }catch(error){
   const message=String(error?.message||error||"Unknown WalletConnect error");
+  $("walletChooser").classList.add("open");
+  $("walletChooser").setAttribute("aria-hidden","false");
   walletChooserStatus("WalletConnect failed: "+message,true);
   $("signatureGate").hidden=!accessVerified;
   setNotice("<strong>WalletConnect could not connect.</strong> "+safe(message)+". Check the Reown Project ID and allowed domains.",true);
