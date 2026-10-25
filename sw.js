@@ -1,5 +1,5 @@
-const CACHE_NAME = "evm-market-shell-v1";
-const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icons/icon.svg"];
+const CACHE_NAME = "evm-market-shell-v2-original-logo";
+const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest?v=original-logo-20261025", "/icons/icon.svg?v=original-logo-20261025"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
