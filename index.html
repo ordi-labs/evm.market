@@ -276,7 +276,7 @@ function attachWalletListeners(provider){
  provider.on?.("chainChanged",chain=>{walletOnBase=normalizeChainId(chain)==="0x2105";if(!walletOnBase)setNotice("<strong>Wallet network changed.</strong> Switch back to Base Mainnet (chain ID 8453) before using marketplace actions.",true);render()});
 }
 $("connect").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open wallet chooser.</strong> "+safe(error?.message||error),true)));
-$("signatureGateContinue").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open wallet chooser.</strong> "+safe(error?.message||error),true)));
+$("signatureGateContinue").addEventListener("click",()=>connectWalletConnect());
 function disconnectWallet(){
  account=null;walletOnBase=false;activeProvider=null;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=false;ownershipCache.clear();
  $("connect").textContent="Connect wallet ↗";$("disconnect").hidden=true;
