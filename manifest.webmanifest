@@ -9,19 +9,16 @@
   "orientation": "any",
   "background_color": "#090b0f",
   "theme_color": "#090b0f",
-  "categories": [
-    "shopping",
-    "entertainment"
-  ],
+  "categories": ["shopping", "entertainment"],
   "icons": [
     {
-      "src": "/icons/icon.svg",
+      "src": "/icons/icon.svg?v=original-logo-20261025",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon.svg",
+      "src": "/icons/icon.svg?v=original-logo-20261025",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
