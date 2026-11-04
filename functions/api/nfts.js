@@ -1,6 +1,7 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
-const ALLOWED = new Set([PUNKS, NODEMONKES]);
+const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS]);
 
 const json = (data, status = 200, forceRefresh = false) => {
   const headers = {
@@ -218,7 +219,7 @@ export async function onRequestGet({request, env}) {
             fetchedAt:new Date().toISOString()
           }, 200, forceRefresh);
         }
-        if (nfts.length && contract === NODEMONKES && openSeaKey) {
+        if (nfts.length && (contract === NODEMONKES || contract === BYTEBEASTS) && openSeaKey) {
           const fallback = await fetchOpenSea({contract, limit, cursor:null, apiKey:openSeaKey, forceRefresh});
           if (fallback.ok && fallback.nfts.length) {
             const merged = mergeArtworkFromOpenSea(nfts, fallback.nfts);
