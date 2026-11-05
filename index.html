@@ -42,7 +42,7 @@
 <section id="market"><div class="market-head"><div><div class="section-kicker">The marketplace</div><h2>Find your next grail.</h2><p>Browse verified contract addresses. Select an item to view available marketplace actions.</p></div><span class="network"><i class="green-dot"></i> Live data when configured</span></div>
 <div class="collection-switch" id="collections"><button class="collection active" data-collection="punks"><span class="symbol">◇</span><span><b>Base Punks</b><small>10,000 collection items</small></span></button><button class="collection" data-collection="nodemonkes"><span class="symbol">✳</span><span><b>NodeMonkes</b><small>10,000 collection items</small></span></button><button class="collection" data-collection="bytebeasts"><span class="symbol">✦</span><span><b>BYTEBEASTS</b><small>Base · OpenSea collection</small></span></button></div>
 <div class="notice" id="notice"><strong>Collector-first by design.</strong> Collection data is requested server-side. This interface never asks for your recovery phrase.</div>
-<div class="toolbar"><input id="search" type="search" placeholder="Search a name or token ID…" aria-label="Search NFTs"><select id="sort" aria-label="Sort items"><option value="id">Token ID · ascending</option><option value="id-desc">Token ID · descending</option></select><button id="refresh">↻ Force refresh</button><span class="count" id="count">Loading collection…</span></div>
+<div class="toolbar"><input id="search" type="search" placeholder="Search a name or token ID…" aria-label="Search NFTs"><select id="sort" aria-label="Sort items"><option value="id">Token ID · ascending</option><option value="id-desc">Token ID · descending</option></select><button id="refresh">↻ Refresh 20 NFTs</button><span class="count" id="count">Loading collection…</span></div>
 <div class="grid" id="grid" aria-live="polite"><div class="empty"><span class="spinner"></span>Loading collection data…</div></div>
 <div class="modal-backdrop" id="detailBackdrop" role="dialog" aria-modal="true" aria-labelledby="detailTitle"><section class="nft-modal"><div class="modal-head"><div><div class="section-kicker">Live NFT data</div><h2 id="detailTitle">Loading NFT…</h2></div><button id="closeDetails" aria-label="Close NFT details">✕</button></div><div id="detailContent"><div class="empty"><span class="spinner"></span>Loading verified metadata…</div></div></section></div><div class="pagination"><button id="prev" disabled>← Previous</button><span id="page">Page 1</span><button id="next" disabled>Next →</button></div></section>
 </main>
@@ -145,44 +145,17 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetails()});
 
 async function load(reset=false,forceRefresh=false){if(reset){page=1;cursors={1:null};nextCursor=null}const cfg=COLLECTIONS[selected];$("grid").innerHTML='<div class="empty"><span class="spinner"></span>Loading collection…</div>';$("count").textContent="Loading…";$("prev").disabled=page<=1;$("next").disabled=true;$("page").textContent="Page "+page;try{const cursor=cursors[page];const url="/api/nfts?contract="+encodeURIComponent(cfg.contract)+"&limit="+PAGE_SIZE+(cursor?"&next="+encodeURIComponent(cursor):"")+(forceRefresh?"&refresh=1&_="+Date.now():"");const res=await fetch(url,{cache:forceRefresh?"no-store":"default",headers:{accept:"application/json",...(forceRefresh?{"cache-control":"no-cache","pragma":"no-cache"}:{})}});const data=await res.json();if(!res.ok)throw new Error(data.error||("API returned HTTP "+res.status));items=data.nfts||[];nextCursor=data.next||null;if(nextCursor)cursors[page+1]=nextCursor;$("prev").disabled=page<=1;$("next").disabled=!nextCursor;$("page").textContent="Page "+page+(nextCursor?" · more results available":" · end of results");if(forceRefresh)setNotice("<strong>Forced refresh complete.</strong> "+cfg.name+" · fresh request at "+new Date().toLocaleTimeString()+" · "+(data.source||"API")+" · "+items.length+" items loaded.");else if(data.source==="opensea")setNotice("<strong>Live data connected.</strong> "+cfg.name+" · verified contract "+cfg.contract+" · OpenSea.");else if(data.source==="alchemy")setNotice("<strong>Live data connected.</strong> "+cfg.name+" · Base mainnet · Alchemy NFT API.");else if(data.source==="rarible")setNotice("<strong>Live data connected.</strong> "+cfg.name+" · Base mainnet · Rarible API.");else setNotice("<strong>Data source status.</strong> Live API returned a response, but verify its source before trading.");render()}catch(e){items=[];$("grid").innerHTML='<div class="empty"><strong>Live collection data is unavailable.</strong><br>'+safe(e.message||e)+'<br><br>Check the API secret for this collection and the Cloudflare Pages deployment, then refresh.</div>';setNotice("<strong>Live data unavailable.</strong> No transaction was submitted. Marketplace links are external.",true);$("count").textContent="Data unavailable"}}
 async function forceRefreshAllPages(){
-  const cfg=COLLECTIONS[selected],button=$("refresh"),original=button.textContent;
-  const refreshedCursors={1:null};let cursor=null,pages=0,total=0,firstPage=null;const seen=new Set();
+  const button=$("refresh"),original=button.textContent;
   button.disabled=true;
-  $("prev").disabled=true;$("next").disabled=true;
-  $("grid").innerHTML='<div class="empty"><span class="spinner"></span>Forcing a live refresh of every '+safe(cfg.name)+' page…</div>';
+  button.textContent="↻ Refreshing 20…";
   try{
-    do{
-      const pageNumber=pages+1;
-      const url="/api/nfts?contract="+encodeURIComponent(cfg.contract)+"&limit="+PAGE_SIZE+(cursor?"&next="+encodeURIComponent(cursor):"")+"&refresh=1&_="+Date.now();
-      const res=await fetch(url,{cache:"no-store",headers:{accept:"application/json","cache-control":"no-cache","pragma":"no-cache"}});
-      const data=await res.json();
-      if(!res.ok)throw new Error(data.error||("API returned HTTP "+res.status+" on page "+pageNumber));
-      const batch=Array.isArray(data.nfts)?data.nfts:[];
-      if(pageNumber===1)firstPage=data;
-      total+=batch.length;pages++;
-      cursor=typeof data.next==="string"&&data.next?data.next:null;
-      if(cursor){
-        if(seen.has(cursor))throw new Error("The provider repeated a pagination cursor; refresh stopped safely.");
-        seen.add(cursor);refreshedCursors[pages+1]=cursor;
-      }
-      button.textContent="Refreshing "+pages+"…";
-      $("count").textContent="Refreshing page "+pages+" · "+total+" NFTs fetched";
-      $("page").textContent="Refreshing all pages…";
-    }while(cursor&&pages<1000);
-    if(cursor)throw new Error("Refresh reached the 1,000-page safety limit; remaining pages were not requested.");
-    page=1;cursors=refreshedCursors;items=Array.isArray(firstPage?.nfts)?firstPage.nfts:[];nextCursor=firstPage?.next||null;
-    $("prev").disabled=true;$("next").disabled=!nextCursor;
-    $("page").textContent="Page 1 · "+pages+" pages force-refreshed";
-    setNotice("<strong>Full collection refresh completed.</strong> "+cfg.name+" · "+total+" NFTs requested across "+pages+" pages · no-cache requests · "+new Date().toLocaleTimeString()+".");
-    render();
-    $("count").textContent=total+" NFTs refreshed across "+pages+" pages · first page shown";
-  }catch(e){
-    setNotice("<strong>Full collection refresh incomplete.</strong> "+safe(e.message||e)+" · no transaction was submitted.",true);
-    if(firstPage){page=1;cursors=refreshedCursors;items=firstPage.nfts||[];nextCursor=firstPage.next||null;render();}
-    $("count").textContent="Refresh incomplete · "+total+" NFTs fetched";
-  }finally{button.disabled=false;button.textContent=original;}
+    await load(false,true);
+  }finally{
+    button.disabled=false;
+    button.textContent=original;
+  }
 }
-document.querySelectorAll("[data-collection]").forEach(b=>b.addEventListener("click",()=>{selected=b.dataset.collection;document.querySelectorAll("[data-collection]").forEach(x=>x.classList.toggle("active",x===b));load(true,selected==="nodemonkes")}));$("search").addEventListener("input",render);$("sort").addEventListener("change",render);$("refresh").addEventListener("click",()=>selected==="bytebeasts"?forceRefreshAllPages():load(false,true));$("prev").addEventListener("click",()=>{if(page>1){page--;load(false)}});$("next").addEventListener("click",()=>{if(nextCursor){page++;load(false)}});
+document.querySelectorAll("[data-collection]").forEach(b=>b.addEventListener("click",()=>{selected=b.dataset.collection;document.querySelectorAll("[data-collection]").forEach(x=>x.classList.toggle("active",x===b));load(true,true)}));$("search").addEventListener("input",render);$("sort").addEventListener("change",render);$("refresh").addEventListener("click",forceRefreshAllPages);$("prev").addEventListener("click",()=>{if(page>1){page--;load(false,true)}});$("next").addEventListener("click",()=>{if(nextCursor){page++;load(false,true)}});
 let activeProvider=null;let connectInFlight=null;const listenerProviders=new WeakSet();
 function closeWalletChooser(){$("walletChooser").classList.remove("open");$("walletChooser").setAttribute("aria-hidden","true")}
 function walletChooserStatus(message,isError=false){
@@ -353,6 +326,6 @@ $("disconnect").addEventListener("click",disconnectWallet);
 $("copyDonation").addEventListener("click",async()=>{const address=$("donationAddress").textContent.trim();const status=$("donationStatus");try{await navigator.clipboard.writeText(address);status.textContent="Address copied."}catch{const range=document.createRange();range.selectNodeContents($("donationAddress"));const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);status.textContent="Select and copy the address manually."}});
 $("walletChooserClose").addEventListener("click",()=>{closeWalletChooser();walletChooserStatus("");if(!accessVerified)$("signatureGate").hidden=false});
 $("walletChooser").addEventListener("click",event=>{if(event.target===$("walletChooser"))closeWalletChooser()});
-document.addEventListener("keydown",event=>{if(event.key==="Escape")closeWalletChooser()});let deferredInstallPrompt=null;const installButton=$("installApp");window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event;installButton.hidden=false;installButton.classList.add("is-visible")});installButton.addEventListener("click",async()=>{if(!deferredInstallPrompt){setNotice("<strong>Install from your browser menu.</strong> On iPhone/iPad, use Share → Add to Home Screen; on desktop or Android, use Install app when offered.");return}deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;installButton.hidden=true;installButton.classList.remove("is-visible")});window.addEventListener("appinstalled",()=>{installButton.hidden=true;installButton.classList.remove("is-visible");setNotice("<strong>evm.market installed.</strong> Open it from your apps.")});if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}load(true);
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closeWalletChooser()});let deferredInstallPrompt=null;const installButton=$("installApp");window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event;installButton.hidden=false;installButton.classList.add("is-visible")});installButton.addEventListener("click",async()=>{if(!deferredInstallPrompt){setNotice("<strong>Install from your browser menu.</strong> On iPhone/iPad, use Share → Add to Home Screen; on desktop or Android, use Install app when offered.");return}deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;installButton.hidden=true;installButton.classList.remove("is-visible")});window.addEventListener("appinstalled",()=>{installButton.hidden=true;installButton.classList.remove("is-visible");setNotice("<strong>evm.market installed.</strong> Open it from your apps.")});if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}load(true,true);
 </script>
 </body></html>
