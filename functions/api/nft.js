@@ -62,16 +62,18 @@ export async function onRequestGet({request, env}) {
   const contract = (url.searchParams.get("contract") || "").toLowerCase();
   const tokenId = (url.searchParams.get("tokenId") || "").trim();
   const forceOpenSea = url.searchParams.get("fallback") === "1";
+  const preferOpenSea = contract === BYTEBEASTS || forceOpenSea;
   if (!ALLOWED.has(contract)) return json({error:"Unsupported collection contract."}, 400, forceOpenSea);
   if (!tokenId || tokenId.length > 100 || !/^[0-9]+$/.test(tokenId)) return json({error:"A numeric tokenId is required."}, 400, forceOpenSea);
 
-  // Alchemy is the primary metadata source for both Base Punks and NodeMonkes.
+  // Alchemy is the primary metadata source for Base Punks and NodeMonkes.
+  // ByteBeasts uses OpenSea because Alchemy's Base cache can return unrevealed/pre-mint artwork.
   let alchemyNft = null;
   let alchemyError = null;
   const configured = contract === NODEMONKES
     ? (env.ETHEREUM_API || env.ALCHEMY_API_KEY || env.ALCHEMY_API)
     : (env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API);
-  if (configured && !forceOpenSea) {
+  if (configured && !preferOpenSea) {
     try {
       const key = alchemyKeyFromConfig(configured);
       const endpoint = new URL("https://base-mainnet.g.alchemy.com/nft/v3/" + encodeURIComponent(key) + "/getNFTMetadata");
@@ -90,7 +92,7 @@ export async function onRequestGet({request, env}) {
   let openSeaNft = null;
   let openSeaError = null;
   const apiKey = env.OPENSEA_API || env.OPENSEA_API_KEY;
-  if ((forceOpenSea || !alchemyNft || !hasUsableImage(alchemyNft)) && apiKey) {
+  if ((preferOpenSea || !alchemyNft || !hasUsableImage(alchemyNft)) && apiKey) {
     try {
       const endpoint = new URL("https://api.opensea.io/api/v2/chain/base/contract/" + contract + "/nfts/" + encodeURIComponent(tokenId));
       const response = await fetch(endpoint, {headers: {"accept":"application/json", "x-api-key":apiKey, ...(forceOpenSea ? {"cache-control":"no-cache","pragma":"no-cache"} : {})}, ...(forceOpenSea ? {cache:"no-store"} : {})});
@@ -130,7 +132,12 @@ export async function onRequestGet({request, env}) {
     } catch { raribleError = "network"; }
   }
 
-  const source = forceOpenSea ? (openSeaNft ? "opensea" : null) : (alchemyNft && hasUsableImage(alchemyNft)) ? "alchemy" : (raribleNft && hasUsableImage(raribleNft)) ? "rarible" : (openSeaNft && hasUsableImage(openSeaNft)) ? "opensea" : openSeaNft ? "opensea" : raribleNft ? "rarible" : alchemyNft ? "alchemy" : null;
+  const source = preferOpenSea
+	  ? (openSeaNft ? "opensea" : null)
+	  : (alchemyNft && hasUsableImage(alchemyNft)) ? "alchemy"
+	    : (raribleNft && hasUsableImage(raribleNft)) ? "rarible"
+	      : (openSeaNft && hasUsableImage(openSeaNft)) ? "opensea"
+	        : openSeaNft ? "opensea" : raribleNft ? "rarible" : alchemyNft ? "alchemy" : null;
   if (!source) {
     const status = alchemyError === 429 || openSeaError === 429 ? 429 : 502;
     return json({
@@ -139,7 +146,11 @@ export async function onRequestGet({request, env}) {
     }, status, forceOpenSea);
   }
 
-  const nft = forceOpenSea ? (openSeaNft || {}) : (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft : (raribleNft && hasUsableImage(raribleNft)) ? raribleNft : (openSeaNft || raribleNft || alchemyNft || {});
+  const nft = preferOpenSea
+	  ? (openSeaNft || {})
+	  : (alchemyNft && hasUsableImage(alchemyNft)) ? alchemyNft
+	    : (raribleNft && hasUsableImage(raribleNft)) ? raribleNft
+	      : (openSeaNft || raribleNft || alchemyNft || {});
   const metadata = nft.metadata || nft.raw?.metadata || openSeaNft?.metadata || {};
   const traitsRaw = Array.isArray(nft.traits) ? nft.traits
     : Array.isArray(metadata.attributes) ? metadata.attributes
