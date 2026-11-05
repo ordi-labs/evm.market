@@ -214,8 +214,45 @@ export async function onRequestGet({request, env}) {
     return json({error:"Invalid pagination cursor."}, 400, forceRefresh);
   }
 
-  // Alchemy is primary; OpenSea is a server-side fallback so an Alchemy
-  // outage or empty index does not blank the collection page.
+  // BYTEBEASTS: use OpenSea as the authoritative collection feed.
+  // Alchemy's Base cache has been returning unrevealed/pre-mint artwork.
+  if (contract === BYTEBEASTS) {
+    if (!openSeaKey) {
+      return json({
+        error:"BYTEBEASTS requires OPENSEA_API in Cloudflare Pages; OpenSea is configured as the primary source.",
+        source:null
+      }, 503, forceRefresh);
+    }
+    try {
+      const result = await fetchOpenSea({
+        contract,
+        limit,
+        cursor:isOpenSeaCursor ? openSeaCursor : null,
+        apiKey:openSeaKey,
+        forceRefresh:true
+      });
+      if (!result.ok) {
+        return json({
+          error:result.status === 429
+            ? "OpenSea rate limit reached. Retry shortly."
+            : "OpenSea could not return BYTEBEASTS metadata.",
+          upstreamStatus:result.status,
+          source:"opensea"
+        }, result.status === 429 ? 429 : 502, true);
+      }
+      return json({
+        nfts:result.nfts,
+        next:encodeOpenSeaCursor(result.next),
+        source:"opensea",
+        refreshed:true,
+        fetchedAt:new Date().toISOString()
+      }, 200, true);
+    } catch {
+      return json({error:"OpenSea BYTEBEASTS feed is temporarily unavailable.",source:"opensea"}, 502, true);
+    }
+  }
+
+  // Alchemy remains primary for PUNKS and NODEMONKES; OpenSea is their fallback.
   let alchemyError = null;
   const configuredAlchemy = contract === NODEMONKES
     ? (env.ETHEREUM_API || env.ALCHEMY_API_KEY || env.ALCHEMY_API)
