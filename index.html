@@ -64,7 +64,7 @@
     <div class="copyright">© <span id="year"></span> evm.market</div>
   </div>
 </footer>
-<div id="signatureGate" class="signature-gate" role="dialog" aria-modal="true" aria-labelledby="signatureGateTitle"><section class="signature-gate-panel"><div class="section-kicker">Wallet verification · Base</div><h2 id="signatureGateTitle">Sign in with your wallet</h2><p>To enter evm.market, connect your wallet and sign a one-time proof-of-control message for this browser session.</p><div class="gate-warning"><strong>Message signature only.</strong> This is not a transaction and does not grant token/NFT approvals. Never sign a transaction or share your recovery phrase to access this site.</div><button id="signatureGateContinue" class="primary" type="button">Choose wallet and sign message ↗</button></section></div><div id="walletChooser" class="wallet-chooser" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="walletChooserTitle"><div class="wallet-chooser-panel"><div class="wallet-chooser-head"><h2 id="walletChooserTitle">Connect a wallet</h2><button id="walletChooserClose" type="button" aria-label="Close wallet chooser">Close</button></div><p>Connect only with WalletConnect mobile wallet. Scan the QR code or select a compatible mobile wallet in the WalletConnect/Reown window. Your wallet will ask you to approve each signature or transaction; never share your recovery phrase.</p><div id="walletOptions" class="wallet-options"></div><p id="walletChooserStatus" class="wallet-chooser-status" role="status" aria-live="polite"></p></div></div>
+<div id="signatureGate" class="signature-gate" hidden role="dialog" aria-modal="true" aria-labelledby="signatureGateTitle"><section class="signature-gate-panel"><div class="section-kicker">Wallet verification · Base</div><h2 id="signatureGateTitle">Sign in with your wallet</h2><p>To enter evm.market, connect your wallet and sign a one-time proof-of-control message for this browser session.</p><div class="gate-warning"><strong>Message signature only.</strong> This is not a transaction and does not grant token/NFT approvals. Never sign a transaction or share your recovery phrase to access this site.</div><button id="signatureGateContinue" class="primary" type="button">Choose wallet and sign message ↗</button></section></div><div id="walletChooser" class="wallet-chooser" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="walletChooserTitle"><div class="wallet-chooser-panel"><div class="wallet-chooser-head"><h2 id="walletChooserTitle">Connect a wallet</h2><button id="walletChooserClose" type="button" aria-label="Close wallet chooser">Close</button></div><p>Connect only with WalletConnect mobile wallet. Scan the QR code or select a compatible mobile wallet in the WalletConnect/Reown window. Your wallet will ask you to approve each signature or transaction; never share your recovery phrase.</p><div id="walletOptions" class="wallet-options"></div><p id="walletChooserStatus" class="wallet-chooser-status" role="status" aria-live="polite"></p></div></div>
 <script>
 const COLLECTIONS={punks:{name:"Base Punks",contract:"0xb9110ba3266f4983193c0d5f55c792a94368af28",slug:"base-punks"},nodemonkes:{name:"NodeMonkes",contract:"0x095b6ae2102094be8b5f06fac27275ddb9a8c70a",slug:"nodemonkes"},bytebeasts:{name:"BYTEBEASTS",contract:"0x7325654c657520e30c56a04225a3d9acdf895e55",slug:"bytebeasts-base"}};
 const PAGE_SIZE=20;let selected="punks",page=1,items=[],nextCursor=null,cursors={1:null},account=null,walletOnBase=false,accessVerified=false,verifiedAccount=null;const ownershipCache=new Map();
@@ -236,7 +236,7 @@ async function connectWalletConnect(){
   $("walletChooser").classList.add("open");
   $("walletChooser").setAttribute("aria-hidden","false");
   walletChooserStatus("WalletConnect failed: "+message,true);
-  $("signatureGate").hidden=accessVerified;
+  $("signatureGate").hidden=true;
   setNotice("<strong>WalletConnect could not connect.</strong> "+safe(message)+". Check the Reown Project ID and allowed domains.",true);
  }
 }
@@ -291,32 +291,25 @@ async function connectWalletSession(provider,label){
   attachWalletListeners(provider);
   if(!account){setNotice("<strong>Wallet not connected.</strong> No account was returned.",true);render();return}
   if(!walletOnBase){
-   setNotice("<strong>"+safe(label)+" connected, but Base switch was not completed.</strong> "+safe(switchError?.message||"Switch to Base (chain ID 8453) manually in your wallet to use NFT actions.")+" No signature, approval or transaction was requested.",true);
-   render();return
+   setNotice("<strong>"+safe(label)+" connected, but the wallet is not on Base.</strong> "+safe(switchError?.message||"Switch to Base (chain ID 8453) to use NFT actions.")+" No signature was requested.",true);
+  }else{
+   setNotice("<strong>"+safe(label)+" connected on Base.</strong> Wallet verification is optional; no signature was requested.");
   }
-  if(!accessVerified||verifiedAccount?.toLowerCase()!==account.toLowerCase()){
-   const random=new Uint8Array(16);crypto.getRandomValues(random);
-   const nonce=Array.from(random,b=>b.toString(16).padStart(2,"0")).join("");
-   const issuedAt=new Date().toISOString();
-   const message="evm.market wallet sign-in\n\nDomain: "+location.host+"\nAddress: "+account+"\nNetwork: Base Mainnet (chain ID 8453)\nNonce: "+nonce+"\nIssued At: "+issuedAt+"\n\nI am proving control of this wallet to access evm.market. This signature does not authorize a blockchain transaction, token approval, NFT transfer, or payment.";
-   const signature=await provider.request({method:"personal_sign",params:[message,account]});
-   if(!/^0x[0-9a-f]{130}$/i.test(String(signature||"")))throw new Error("Wallet did not return a valid 65-byte message signature.");
-   accessVerified=true;verifiedAccount=account;$("signatureGate").hidden=true;
-  }
-  setNotice("<strong>"+safe(label)+" verified on Base.</strong> "+safe(account)+". Access was unlocked using a wallet message signature. No blockchain transaction or token/NFT approval was requested.");
-  render()
- }catch(e){$("signatureGate").hidden=false;setNotice("<strong>Wallet verification failed.</strong> "+safe(e.message||e)+". Marketplace access remains locked; no transaction was sent.",true)}
+  render();
+ }catch(e){
+  setNotice("<strong>Wallet connection failed.</strong> "+safe(e.message||e)+". The site remains accessible without a wallet.",true);
+ }
 }
 function attachWalletListeners(provider){
  if(!provider||listenerProviders.has(provider))return;
  listenerProviders.add(provider);
- provider.on?.("accountsChanged",a=>{const nextAccount=a[0]||null;if((nextAccount||"").toLowerCase()===(account||"").toLowerCase())return;account=nextAccount;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=false;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=normalizeChainId(chain)==="0x2105";if(walletOnBase)setNotice("<strong>Wallet account changed.</strong> Sign in again to verify the newly selected account.");render()}).catch(()=>render())}else{activeProvider=null;render()}});
+ provider.on?.("accountsChanged",a=>{const nextAccount=a[0]||null;if((nextAccount||"").toLowerCase()===(account||"").toLowerCase())return;account=nextAccount;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletOnBase=normalizeChainId(chain)==="0x2105";if(walletOnBase)setNotice("<strong>Wallet account changed.</strong> Sign in again to verify the newly selected account.");render()}).catch(()=>render())}else{activeProvider=null;render()}});
  provider.on?.("chainChanged",chain=>{walletOnBase=normalizeChainId(chain)==="0x2105";if(!walletOnBase)setNotice("<strong>Wallet network changed.</strong> Switch back to Base Mainnet (chain ID 8453) before using marketplace actions.",true);render()});
 }
 $("connect").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open wallet chooser.</strong> "+safe(error?.message||error),true)));
-$("signatureGateContinue").addEventListener("click",()=>connectWalletConnect());
+$("signatureGateContinue").addEventListener("click",()=>connectWalletConnect());$("signatureGate").hidden=true;
 function disconnectWallet(){
- account=null;walletOnBase=false;activeProvider=null;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=false;ownershipCache.clear();
+ account=null;walletOnBase=false;activeProvider=null;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;ownershipCache.clear();
  $("connect").textContent="Connect wallet ↗";$("disconnect").hidden=true;
  closeWalletChooser();
  setNotice("<strong>Wallet disconnected from this site.</strong> This clears the app’s local connection state; it does not revoke the site’s permissions in your wallet. Manage connected-site permissions in your wallet if you want to revoke them.");
@@ -324,7 +317,7 @@ function disconnectWallet(){
 }
 $("disconnect").addEventListener("click",disconnectWallet);
 $("copyDonation").addEventListener("click",async()=>{const address=$("donationAddress").textContent.trim();const status=$("donationStatus");try{await navigator.clipboard.writeText(address);status.textContent="Address copied."}catch{const range=document.createRange();range.selectNodeContents($("donationAddress"));const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);status.textContent="Select and copy the address manually."}});
-$("walletChooserClose").addEventListener("click",()=>{closeWalletChooser();walletChooserStatus("");if(!accessVerified)$("signatureGate").hidden=false});
+$("walletChooserClose").addEventListener("click",()=>{closeWalletChooser();walletChooserStatus("");if(!accessVerified)$("signatureGate").hidden=true});
 $("walletChooser").addEventListener("click",event=>{if(event.target===$("walletChooser"))closeWalletChooser()});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeWalletChooser()});let deferredInstallPrompt=null;const installButton=$("installApp");window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event;installButton.hidden=false;installButton.classList.add("is-visible")});installButton.addEventListener("click",async()=>{if(!deferredInstallPrompt){setNotice("<strong>Install from your browser menu.</strong> On iPhone/iPad, use Share → Add to Home Screen; on desktop or Android, use Install app when offered.");return}deferredInstallPrompt.prompt();await deferredInstallPrompt.userChoice;deferredInstallPrompt=null;installButton.hidden=true;installButton.classList.remove("is-visible")});window.addEventListener("appinstalled",()=>{installButton.hidden=true;installButton.classList.remove("is-visible");setNotice("<strong>evm.market installed.</strong> Open it from your apps.")});if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}load(true,true);
 </script>
