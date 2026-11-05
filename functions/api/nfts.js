@@ -77,7 +77,32 @@ function normalizeAlchemyNft(n, contract) {
   };
 }
 
-async function resolveAlchemyMetadata(nft) {
+async function refreshAlchemyTokenMetadata(nft, key, contract) {
+  const tokenId = String(nft?.tokenId ?? nft?.token_id ?? nft?.identifier ?? "");
+  if (!tokenId) return nft;
+  try {
+    const endpoint = new URL("https://base-mainnet.g.alchemy.com/nft/v3/" + encodeURIComponent(key) + "/getNFTMetadata");
+    endpoint.searchParams.set("contractAddress", contract);
+    endpoint.searchParams.set("tokenId", tokenId);
+    endpoint.searchParams.set("refreshCache", "true");
+    const response = await fetch(endpoint, {
+      headers: {"accept":"application/json","cache-control":"no-cache","pragma":"no-cache"},
+      cache:"no-store"
+    });
+    if (!response.ok) return nft;
+    const fresh = await response.json();
+    return {
+      ...nft,
+      ...fresh,
+      raw: {...(nft.raw || {}), ...(fresh.raw || {}), metadata: {...(nft.raw?.metadata || {}), ...(fresh.raw?.metadata || {})}},
+      metadata: {...(nft.metadata || {}), ...(fresh.metadata || {})}
+    };
+  } catch {
+    return nft;
+  }
+}
+
+async function resolveAlchemyMetadata(nft, forceRefresh = false) {
   const raw = nft?.raw || {};
   const existing = raw.metadata || nft?.metadata || {};
   const tokenUri = nft?.tokenUri;
@@ -87,10 +112,13 @@ async function resolveAlchemyMetadata(nft) {
     tokenUri?.raw
   ].map(imageUrl).filter(value => /^https?:\/\//i.test(value));
   const image = existing.image || existing.image_url || existing.imageURI || existing.imageUri || existing.properties?.image;
-  if (typeof image === "string" && image.trim()) return nft;
+  if (!forceRefresh && typeof image === "string" && image.trim()) return nft;
   for (const uri of candidates) {
     try {
-      const response = await fetch(uri, {headers: {"accept":"application/json"}});
+      const response = await fetch(uri, {
+        headers: {"accept":"application/json", ...(forceRefresh ? {"cache-control":"no-cache","pragma":"no-cache"} : {})},
+        ...(forceRefresh ? {cache:"no-store"} : {})
+      });
       if (!response.ok) continue;
       const metadata = await response.json();
       if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) continue;
@@ -209,7 +237,15 @@ export async function onRequestGet({request, env}) {
       if (!response.ok) alchemyError = response.status;
       else {
         const data = await response.json();
-        const nfts = Array.isArray(data.nfts) ? await Promise.all(data.nfts.map(async n => normalizeAlchemyNft(await resolveAlchemyMetadata(n), contract))) : [];
+        const nfts = Array.isArray(data.nfts) ? await Promise.all(data.nfts.map(async n => {
+          const latest = contract === BYTEBEASTS && forceRefresh
+            ? await refreshAlchemyTokenMetadata(n, key, contract)
+            : n;
+          return normalizeAlchemyNft(
+            await resolveAlchemyMetadata(latest, contract === BYTEBEASTS && forceRefresh),
+            contract
+          );
+        })) : [];
         if (nfts.length && nfts.every(n => Boolean(n.image_url))) {
           return json({
             nfts,
