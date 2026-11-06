@@ -146,9 +146,67 @@ async function getListingResponse(url){const task=listingQueue.then(async()=>{fo
 function syncCollectionListingState(contract,state){if(COLLECTIONS[selected]?.contract!==contract)return;for(const nft of items){const id=idOf(nft),key=listingKey(contract,id),found=state.byId.get(id);if(found)liveListings.set(key,found);else if(state.complete)liveListings.set(key,false);else if(state.error)liveListings.set(key,{error:state.error});else liveListings.set(key,"loading")}render()}
 function loadLiveListing(n,contract){const id=idOf(n),key=listingKey(contract,id),state=collectionListings.get(contract);if(!id||liveListings.has(key))return;if(state?.byId.has(id)){liveListings.set(key,state.byId.get(id));return}if(state?.complete){liveListings.set(key,false);return}if(state?.error){liveListings.set(key,{error:state.error});return}liveListings.set(key,"loading")}
 async function loadCollectionListings(contract,refresh=false){if(refresh){collectionListings.delete(contract);collectionListingLoads.delete(contract)}const current=collectionListings.get(contract);if(current?.complete){syncCollectionListingState(contract,current);return}if(collectionListingLoads.has(contract))return collectionListingLoads.get(contract);const state=current||{byId:new Map(),complete:false,next:null,error:null};collectionListings.set(contract,state);const task=(async()=>{let next=null;for(let pageIndex=0;pageIndex<50;pageIndex++){const url="/api/trade?action=collection-listings&contract="+encodeURIComponent(contract)+"&limit=200"+(next?"&next="+encodeURIComponent(next):"");const response=await getListingResponse(url);const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"OpenSea collection listings unavailable");const listings=Array.isArray(data.listings)?data.listings:Array.isArray(data.orders)?data.orders:[];for(const order of listings){if(String(order?.status||"ACTIVE").toUpperCase()!=="ACTIVE")continue;const asset=order?.asset||order?.nft||order?.item,offered=order?.protocol_data?.parameters?.offer||order?.protocolData?.parameters?.offer||[],nftOffer=offered.find(x=>Number(x?.itemType)===2);const orderContract=String(asset?.contract||asset?.contract_address||nftOffer?.token||"").toLowerCase();if(orderContract&&orderContract!==contract.toLowerCase())continue;const id=String(asset?.identifier??asset?.token_id??asset?.tokenId??nftOffer?.identifierOrCriteria??nftOffer?.identifier_or_criteria??"");if(!/^(0|[1-9][0-9]{0,77})$/.test(id))continue;const price=listingPrice(order);const previous=state.byId.get(id);if(!previous||(price&&(!previous.price||price.value<previous.price.value)))state.byId.set(id,{order,price})}next=data.next||null;state.next=next;if(!next){state.complete=true;state.error=null;syncCollectionListingState(contract,state);return}syncCollectionListingState(contract,state)}throw new Error("OpenSea listing pagination exceeded 50 pages; unconfirmed items were not labelled unlisted.")})().catch(error=>{state.error=String(error?.message||error);syncCollectionListingState(contract,state)}).finally(()=>collectionListingLoads.delete(contract));collectionListingLoads.set(contract,task);return task}
-function normalizeTraitCatalog(data){const grouped=new Map(),add=(type,value)=>{type=String(type||"").trim();value=String(value??"");if(!type||!value)return;if(!grouped.has(type))grouped.set(type,new Map());const values=grouped.get(type);values.set(value,(values.get(value)||0)+1)};if(data?.nftTraits&&typeof data.nftTraits==="object"){for(const attributes of Object.values(data.nftTraits)){const seen=new Set();for(const trait of Array.isArray(attributes)?attributes:[]){const type=trait?.trait_type||trait?.traitType||trait?.key||trait?.type||trait?.name,value=trait?.value,key=String(type||"")+"::"+String(value??"");if(seen.has(key))continue;seen.add(key);add(type,value)}}}else{const root=data?.traits||data,categories=root?.categories,counts=root?.counts;if(categories&&typeof categories==="object"&&counts&&typeof counts==="object"){for(const [type,kind] of Object.entries(categories)){const values=counts[type];if(!values||typeof values!=="object"||String(kind).toLowerCase()==="number")continue;for(const value of Object.keys(values))add(type,value)}}else{let entries=root?.traits??root?.trait_types??root?.items??root?.results??root;if(!Array.isArray(entries)&&entries&&typeof entries==="object")entries=Object.entries(entries).map(([trait_type,values])=>({trait_type,values}));for(const trait of Array.isArray(entries)?entries:[]){const type=trait?.trait_type||trait?.traitType||trait?.type||trait?.name;let values=trait?.values??trait?.trait_values??trait?.options??[];if(!Array.isArray(values)&&values&&typeof values==="object")values=Object.keys(values);if(!Array.isArray(values))values=[];if(!values.length&&(trait?.value!==undefined||trait?.trait_value!==undefined))values=[trait.value??trait.trait_value];for(const value of values)add(type,typeof value==="object"&&value!==null?value.value??value.name:value)}}}return [...grouped.entries()].map(([type,values])=>({type,values:[...values.entries()].map(([value,count])=>({value,count})).sort((a,b)=>b.count-a.count||a.value.localeCompare(b.value))})).sort((a,b)=>a.type.localeCompare(b.type))}
-function updateTraitValueOptions(){const typeSelect=$("traitTypeFilter"),valueSelect=$("traitValueFilter"),current=valueSelect.value,entry=(traitCatalog.get(COLLECTIONS[selected].contract)||[]).find(t=>t.type===typeSelect.value);valueSelect.replaceChildren(new Option("All values",""));valueSelect.disabled=!entry;if(entry)for(const value of entry.values)valueSelect.add(new Option(value.value+(value.count?" · "+value.count:""),value.value));if(entry&&entry.values.some(v=>v.value===current))valueSelect.value=current}
-function updateTraitTypeOptions(){const select=$("traitTypeFilter"),current=select.value,traits=traitCatalog.get(COLLECTIONS[selected].contract)||[];select.replaceChildren(new Option(traits.length?"All traits · "+traits.length+" types":"All traits · no traits loaded",""));for(const trait of traits)select.add(new Option(trait.type+(trait.values.length?" · "+trait.values.length+" values":""),trait.type));if(traits.some(t=>t.type===current))select.value=current;updateTraitValueOptions()}
+function normalizeTraitCatalog(data){
+ const grouped=new Map();
+ const add=(type,value,count=0)=>{
+  type=String(type||"").trim();
+  if(value===undefined||value===null||!type)return;
+  value=String(value).trim();if(!value)return;
+  const numeric=Number(count),amount=Number.isFinite(numeric)&&numeric>0?numeric:0;
+  if(!grouped.has(type))grouped.set(type,new Map());
+  const values=grouped.get(type),previous=values.get(value);
+  values.set(value,previous===undefined?amount:Math.max(previous,amount));
+ };
+ const addValue=(type,item)=>{
+  if(item===undefined||item===null)return;
+  if(typeof item!=="object"){add(type,item);return}
+  const value=item.value??item.trait_value??item.name??item.label;
+  const count=item.count??item.total_count??item.nft_count??item.counts??0;
+  if(value!==undefined)add(type,value,count);
+  else for(const [key,n] of Object.entries(item))if(typeof n==="number"||typeof n==="string")add(type,key,n);
+ };
+ const addValues=(type,values)=>{
+  if(Array.isArray(values)){for(const item of values)addValue(type,item);return}
+  if(values&&typeof values==="object"){
+   for(const [value,count] of Object.entries(values)){
+    if(count&&typeof count==="object")addValue(type,count.value!==undefined?count:{...count,value:count.name??value});
+    else add(type,value,count);
+   }
+   return;
+  }
+  addValue(type,values);
+ };
+ if(data?.nftTraits&&typeof data.nftTraits==="object"){
+  for(const attributes of Object.values(data.nftTraits)){
+   const seen=new Set();
+   for(const trait of Array.isArray(attributes)?attributes:[]){
+    const type=trait?.trait_type||trait?.traitType||trait?.key||trait?.type||trait?.name;
+    const value=trait?.value;
+    const key=String(type||"")+"::"+String(value??"");
+    if(seen.has(key))continue;seen.add(key);add(type,value);
+   }
+  }
+ }else{
+  const root=data?.traits||data;
+  const categories=root?.categories,counts=root?.counts;
+  if(categories&&typeof categories==="object"&&counts&&typeof counts==="object"){
+   for(const [type,kind] of Object.entries(categories)){
+    const values=counts[type];if(!values||String(kind).toLowerCase()==="number")continue;
+    addValues(type,values);
+   }
+  }else{
+   let entries=root?.traits??root?.trait_types??root?.items??root?.results??root;
+   if(!Array.isArray(entries)&&entries&&typeof entries==="object")entries=Object.entries(entries).map(([trait_type,values])=>({trait_type,values}));
+   for(const trait of Array.isArray(entries)?entries:[]){
+    const type=trait?.trait_type||trait?.traitType||trait?.type||trait?.name;
+    const values=trait?.values??trait?.trait_values??trait?.options??trait?.counts;
+    if(values!==undefined)addValues(type,values);
+    else if(trait?.value!==undefined||trait?.trait_value!==undefined)addValue(type,trait.value??trait.trait_value);
+   }
+  }
+ }
+ return [...grouped.entries()].map(([type,values])=>({type,values:[...values.entries()].map(([value,count])=>({value,count})).sort((a,b)=>b.count-a.count||a.value.localeCompare(b.value))})).sort((a,b)=>a.type.localeCompare(b.type));
+}
 async function loadCollectionTraitCatalog(tokenIds=items.map(idOf)){
  const contract=COLLECTIONS[selected].contract,pageIds=items.map(idOf).join(","),ids=[...new Set(tokenIds.map(String))].filter(id=>/^(0|[1-9][0-9]{0,77})$/.test(id)).slice(0,50);
  const catalogPromise=fetch("/api/traits?contract="+encodeURIComponent(contract),{cache:"no-store",headers:{accept:"application/json"}}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||"Collection traits unavailable");return data});
