@@ -2,7 +2,7 @@
   "id": "/",
   "name": "evm.market — Collect culture",
   "short_name": "evm.market",
-  "description": "A premium collector's market for Punks and NodeMonkes on Base.",
+  "description": "A premium collector's market for Base Punks, NodeMonkes and BYTEBEASTS on Base.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -12,16 +12,22 @@
   "categories": ["shopping", "entertainment"],
   "icons": [
     {
-      "src": "/icons/icon.svg?v=original-logo-20261025",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icons/icon-192.png?v=logo-20261106",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon.svg?v=original-logo-20261025",
+      "src": "/icons/icon-512.png?v=logo-20261106",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon.svg?v=logo-20261106",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "maskable"
+      "purpose": "any"
     }
   ],
   "shortcuts": [

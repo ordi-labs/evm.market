@@ -15,7 +15,8 @@ This change adds an installable Progressive Web App (PWA) to the existing site. 
 
 - `manifest.webmanifest`: app identity, standalone display and theme.
 - `sw.js`: versioned app-shell cache and navigation fallback. It does not cache cross-origin APIs or non-GET requests.
-- `icons/icon.svg`: app icon.
+- `icons/icon.svg`: scalable app icon and favicon.
+- `icons/icon-180.png`, `icons/icon-192.png` and `icons/icon-512.png`: raster icons for iOS Home Screen and Chromium PWA installation.
 - `index.html`: mobile-web-app metadata, install affordance and service-worker registration.
 
 ## Important limits
