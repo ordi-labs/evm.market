@@ -13,6 +13,8 @@ test("trait filter fails closed when item attributes are missing", () => {
 test("trait catalog loads collection facets instead of only the current page", () => {
   assert.match(html, /\/api\/traits\?contract=/);
   assert.match(html, /nftTraits/);
+  assert.match(html, /function updateTraitValueOptions\(\)/);
+  assert.match(html, /function updateTraitTypeOptions\(\)/);
 });
 test("trait catalog retains every array value and its count from collection facets", () => {
   const result = normalizeTraitCatalog({traits:[
