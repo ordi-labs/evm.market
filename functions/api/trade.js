@@ -401,14 +401,21 @@ export async function onRequest({ request, env }) {
       return json(action === "listings" ? { orders: [], listings: [] } : { orders: [], offers: [] });
     }
     if (!response.ok) {
+      const retryAfter = response.headers.get("retry-after");
       return json({ error: "OpenSea request failed.", providerStatus: response.status,
-        details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502);
+        retryAfter,
+        details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502,
+      response.status === 429 && retryAfter ? {"retry-after": retryAfter} : {});
     }
-    const order = data && typeof data === "object" ? data : null;
-    const isMatchingAsset = String(order?.asset?.contract || "").toLowerCase() === asset.contract &&
-      String(order?.asset?.identifier ?? "") === asset.tokenId;
+    const order = data?.order && typeof data.order === "object" ? data.order : data && typeof data === "object" ? data : null;
+    const identity = order?.asset || order?.nft || order?.item || null;
+    const orderContract = identity?.contract || identity?.contract_address || identity?.address;
+    const orderTokenId = identity?.identifier ?? identity?.token_id ?? identity?.tokenId;
+    const hasIdentity = Boolean(orderContract || orderTokenId);
+    const isMatchingAsset = !hasIdentity || (String(orderContract || "").toLowerCase() === asset.contract &&
+      String(orderTokenId ?? "") === asset.tokenId);
     const supported = isMatchingAsset && String(order?.status || "ACTIVE").toUpperCase() === "ACTIVE" &&
-      Boolean(order?.order_hash || order?.orderHash);
+      Boolean(order?.order_hash || order?.orderHash || order?.protocol_data?.order_hash);
     const orders = supported ? [order] : [];
     return json(action === "listings" ? { ...data, orders, listings: orders } : { ...data, orders, offers: orders });
   }

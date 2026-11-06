@@ -1,6 +1,7 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
+const COLLECTION_SLUGS = new Map([[PUNKS,"base-punks"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"]]);
 const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS]);
 
 const json = (data, status = 200, forceRefresh = false) => {
@@ -193,6 +194,18 @@ async function fetchOpenSea({contract, limit, cursor, apiKey, forceRefresh}) {
   };
 }
 
+async function fetchOpenSeaTraitPage({contract, traitType, traitValue, limit, cursor, apiKey}) {
+  const slug = COLLECTION_SLUGS.get(contract);
+  const endpoint = new URL("https://api.opensea.io/api/v2/collection/" + encodeURIComponent(slug) + "/nfts");
+  endpoint.searchParams.set("limit", String(limit));
+  endpoint.searchParams.set("traits", JSON.stringify([{traitType, value: traitValue}]));
+  if (cursor) endpoint.searchParams.set("next", cursor);
+  const response = await fetch(endpoint, {headers:{accept:"application/json","x-api-key":apiKey}});
+  if (!response.ok) return {ok:false,status:response.status};
+  const data = await response.json();
+  return {ok:true,nfts:Array.isArray(data.nfts)?data.nfts.map(n=>normalizeOpenSeaNft(n,contract)):[],next:typeof data.next==="string"?data.next:null};
+}
+
 export async function onRequestGet({request, env}) {
   const url = new URL(request.url);
   const contract = (url.searchParams.get("contract") || "").toLowerCase();
@@ -212,6 +225,22 @@ export async function onRequestGet({request, env}) {
     if (isOpenSeaCursor) openSeaCursor = decodeOpenSeaCursor(next);
   } catch {
     return json({error:"Invalid pagination cursor."}, 400, forceRefresh);
+  }
+
+  const traitType = (url.searchParams.get("traitType") || "").trim();
+  const traitValue = (url.searchParams.get("traitValue") || "").trim();
+  if (traitType.length > 128 || traitValue.length > 256 || Boolean(traitType) !== Boolean(traitValue)) {
+    return json({error:"Choose a valid trait type and value."}, 400, forceRefresh);
+  }
+  if (traitType && traitValue) {
+    if (!openSeaKey) return json({error:"OpenSea API is not configured on the server."}, 503, forceRefresh);
+    try {
+      const result = await fetchOpenSeaTraitPage({contract,traitType,traitValue,limit,cursor:isOpenSeaCursor?openSeaCursor:null,apiKey:openSeaKey});
+      if (!result.ok) return json({error:result.status===429?"OpenSea rate limit reached. Retry shortly.":"OpenSea trait-filtered NFT data is temporarily unavailable.",upstreamStatus:result.status,source:"opensea"},result.status===429?429:502,forceRefresh);
+      return json({nfts:result.nfts,next:encodeOpenSeaCursor(result.next),source:"opensea-traits",refreshed:forceRefresh,fetchedAt:new Date().toISOString()},200,forceRefresh);
+    } catch {
+      return json({error:"OpenSea trait-filtered NFT data is temporarily unavailable.",source:"opensea"},502,forceRefresh);
+    }
   }
 
   // BYTEBEASTS: use OpenSea as the authoritative collection feed.
