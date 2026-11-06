@@ -30,3 +30,68 @@ test("NFT route rejects incomplete or oversized trait filters", async () => {
   const response = await onRequestGet({request: new Request(url), env: {OPENSEA_API: "private-test-key"}});
   assert.equal(response.status, 400);
 });
+
+test("trait scan reads 50 OpenSea NFTs per page and returns all NFT attributes and a cursor", async t => {
+  const originalFetch = globalThis.fetch;
+  let requested;
+  globalThis.fetch = async (url, init) => {
+    requested = {url: new URL(String(url)), init};
+    return new Response(JSON.stringify({nfts:[
+      {identifier:"1",name:"Punk One",traits:[{trait_type:"Skin Tone",value:"Mid"},{trait_type:"Sex",value:"Female"}]},
+      {identifier:"2",name:"Punk Two",metadata:{attributes:[{trait_type:"Skin Tone",value:"Light"}]}}
+    ],next:"opaque-next-cursor"}),{status:200});
+  };
+  t.after(()=>{globalThis.fetch=originalFetch});
+  const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1&limit=50"),env:{OPENSEA_API:"private-test-key"}});
+  assert.equal(response.status,200);
+  assert.equal(requested.url.pathname,"/api/v2/chain/base/contract/0xb9110ba3266f4983193c0d5f55c792a94368af28/nfts");
+  assert.equal(requested.url.searchParams.get("limit"),"50");
+  assert.equal(requested.init.headers["x-api-key"],"private-test-key");
+  const body=await response.json();
+  assert.equal(body.source,"opensea-trait-index");
+  assert.equal(body.nfts.length,2);
+  assert.equal(body.nfts[0].metadata.attributes[0].value,"Mid");
+  assert.equal(body.nfts[1].metadata.attributes[0].value,"Light");
+  assert.match(body.next,/^os_/);
+});
+
+test("trait scan batch-loads attributes omitted from the paginated NFT feed",async t=>{
+  const originalFetch=globalThis.fetch;
+  const calls=[];
+  globalThis.fetch=async(url,init)=>{
+    calls.push({url:new URL(String(url)),init});
+    if(calls.length===1)return new Response(JSON.stringify({nfts:[{identifier:"42",name:"Punk 42"}],next:null}),{status:200});
+    return new Response(JSON.stringify({nfts:[{identifier:"42",traits:[{trait_type:"Skin Tone",value:"Olive"},{trait_type:"Sex",value:"Female"}]}]}),{status:200});
+  };
+  t.after(()=>{globalThis.fetch=originalFetch});
+  const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1"),env:{OPENSEA_API:"private-test-key"}});
+  assert.equal(response.status,200);
+  assert.equal(calls.length,2);
+  assert.equal(calls[1].url.pathname,"/api/v2/nfts/batch");
+  assert.equal(calls[1].init.method,"POST");
+  assert.deepEqual(JSON.parse(calls[1].init.body),{identifiers:[{chain:"base",contract_address:"0xb9110ba3266f4983193c0d5f55c792a94368af28",token_id:"42"}]});
+  const body=await response.json();
+  assert.equal(body.nfts[0].metadata.attributes[0].value,"Olive");
+});
+
+test("trait scan follows provider cursors and clamps its page size at 50", async t => {
+  const originalFetch=globalThis.fetch;
+  let requestedUrl;
+  globalThis.fetch=async url=>{
+    requestedUrl=new URL(String(url));
+    return new Response(JSON.stringify({nfts:[],next:null}),{status:200});
+  };
+  t.after(()=>{globalThis.fetch=originalFetch});
+  const cursor="os_"+btoa("cursor-page-2").replace(/=/g,"");
+  const response=await onRequestGet({request:new Request(`https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1&limit=100&next=${cursor}`),env:{OPENSEA_API:"private-test-key"}});
+  assert.equal(response.status,200);
+  assert.equal(requestedUrl.searchParams.get("limit"),"50");
+  assert.equal(requestedUrl.searchParams.get("next"),"cursor-page-2");
+  assert.equal((await response.json()).next,null);
+});
+
+test("trait scan fails closed when OpenSea is not configured", async () => {
+  const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1"),env:{}});
+  assert.equal(response.status,503);
+  assert.match((await response.json()).error,/OpenSea API is required/);
+});
