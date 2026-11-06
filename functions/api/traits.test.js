@@ -52,6 +52,18 @@ test("traits route batches real NFT traits using exact Base identifiers", async 
   assert.deepEqual(body.nftTraits["2"], [{trait_type: "Sex", value: "Male"}]);
 });
 
+test("traits batch normalizes camelCase and key aliases for NodeMonkes", async t => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({nfts: [{identifier: "8", traits: [
+    {traitType: "Head", value: "Crown"}, {key: "Eyes", value: "Laser"}
+  ]}]}), {status: 200});
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x095b6ae2102094be8b5f06fac27275ddb9a8c70a&tokenIds=8"), env: {OPENSEA_API: "private-test-key"}});
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.nftTraits["8"], [{trait_type: "Head", value: "Crown"}, {trait_type: "Eyes", value: "Laser"}]);
+});
+
 test("traits batch rejects invalid token IDs or more than 50 NFTs", async () => {
   for (const tokenIds of ["1,abc", Array.from({length: 51}, (_, i) => i + 1).join(",")]) {
     const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x095b6ae2102094be8b5f06fac27275ddb9a8c70a&tokenIds=" + tokenIds), env: {OPENSEA_API: "private-test-key"}});

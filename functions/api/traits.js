@@ -54,7 +54,7 @@ export async function onRequestGet({request, env}) {
         const id = String(nft?.identifier ?? "");
         if (!tokenIds.includes(id)) continue;
         nftTraits[id] = (Array.isArray(nft.traits) ? nft.traits : []).flatMap(trait => {
-          const type = String(trait?.trait_type ?? trait?.type ?? "").trim();
+          const type = String(trait?.trait_type ?? trait?.traitType ?? trait?.type ?? trait?.key ?? trait?.name ?? "").trim();
           if (!type || trait?.value === undefined || trait?.value === null) return [];
           return [{trait_type: type, value: String(trait.value), ...(trait.display_type ? {display_type: trait.display_type} : {})}];
         });
