@@ -49,6 +49,9 @@ test("a positive active listing is kept even if its price could not be parsed", 
   assert.match(html, /if\(status==="listed"&&\(!listing\|\|listing===false\|\|listing==="loading"\|\|listing\.error\)\)return false;/);
   assert.doesNotMatch(html, /const price=listingPrice\(order\);if\(!price\)continue/);
 });
+test("the first NFT-card render resolves its listing state before reading the price", () => {
+  assert.match(html, /loadLiveListing\(n,contract\);const listing=activeListing\(n\);price\.textContent=/);
+});
 
 test("owned view is exposed as a wallet-scoped mode for the three configured collections", () => {
   assert.match(html, /id="ownedByMe"/);
