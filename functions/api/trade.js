@@ -282,6 +282,33 @@ export async function onRequest({ request, env }) {
 
   const url = new URL(request.url);
   const action = url.searchParams.get("action") || (request.method === "POST" ? "post-listing" : "listings");
+  if (request.method === "GET" && action === "collection-listings") {
+    const contract = String(url.searchParams.get("contract") || "").toLowerCase();
+    const slug = COLLECTION_SLUGS.get(contract);
+    if (!slug) return json({ error: "Unsupported collection contract." }, 400);
+    const limitRaw = url.searchParams.get("limit") || "200";
+    const limit = Number(limitRaw);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) return json({ error: "Listing page limit must be between 1 and 200." }, 400);
+    const next = String(url.searchParams.get("next") || "");
+    if (next.length > 2000) return json({ error: "Listing pagination cursor is too long." }, 400);
+    const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
+    if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
+    const endpoint = "/listings/collection/" + encodeURIComponent(slug) + "/best?limit=" + limit + (next ? "&next=" + encodeURIComponent(next) : "");
+    let response;
+    try { response = await fetch(OPENSEA_API + endpoint, {headers: {accept: "application/json", "x-api-key": apiKey}}); }
+    catch { return json({ error: "OpenSea request failed." }, 502); }
+    const raw = await response.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { return json({ error: "Invalid response from marketplace provider." }, 502); }
+    if (response.status === 404) return json({ listings: [], next: null });
+    if (!response.ok) {
+      const retryAfter = response.headers.get("retry-after");
+      return json({ error: "OpenSea request failed.", providerStatus: response.status, retryAfter,
+        details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502,
+      response.status === 429 && retryAfter ? {"retry-after": retryAfter} : {});
+    }
+    return json(data);
+  }
   let asset;
   try {
     asset = getAssetParams(url);

@@ -8,13 +8,13 @@ test("traits route only accepts the three configured collection contracts", asyn
   assert.match((await response.json()).error, /Unsupported collection/);
 });
 
-test("traits route proxies collection facets server-side and caches the result", async t => {
+test("traits route proxies the official collection facet endpoint", async t => {
   const originalFetch = globalThis.fetch;
   let called = "";
   globalThis.fetch = async (url, init) => {
     called = String(url);
     assert.equal(init.headers["x-api-key"], "private-test-key");
-    return new Response(JSON.stringify({traits: [{trait_type: "Sex", values: [{value: "Female", count: 3840}]}]}), {status: 200});
+    return new Response(JSON.stringify({categories: {Sex: "string"}, counts: {Sex: {Female: 10}}}), {status: 200});
   };
   t.after(() => { globalThis.fetch = originalFetch; });
   const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28"), env: {OPENSEA_API: "private-test-key"}});
@@ -22,7 +22,41 @@ test("traits route proxies collection facets server-side and caches the result",
   assert.match(called, /\/traits\/base-punks$/);
   assert.match(response.headers.get("cache-control"), /s-maxage=300/);
   const body = await response.json();
-  assert.equal(body.traits[0].trait_type, "Sex");
+  assert.equal(body.traits.categories.Sex, "string");
+  assert.equal(body.traits.counts.Sex.Female, 10);
+});
+
+test("traits route batches real NFT traits using exact Base identifiers", async t => {
+  const originalFetch = globalThis.fetch;
+  let called = "", init;
+  globalThis.fetch = async (url, options) => {
+    called = String(url); init = options;
+    return new Response(JSON.stringify({nfts: [
+      {identifier: "1", traits: [{trait_type: "Sex", value: "Female"}, {trait_type: "Background", value: "Purple"}]},
+      {identifier: "2", traits: [{trait_type: "Sex", value: "Male"}]}
+    ]}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&tokenIds=1,2"), env: {OPENSEA_API: "private-test-key"}});
+  assert.equal(response.status, 200);
+  assert.match(called, /\/nfts\/batch$/);
+  assert.equal(init.method, "POST");
+  assert.equal(init.headers["x-api-key"], "private-test-key");
+  assert.deepEqual(JSON.parse(init.body), {identifiers: [
+    {chain: "base", contract_address: "0xb9110ba3266f4983193c0d5f55c792a94368af28", token_id: "1"},
+    {chain: "base", contract_address: "0xb9110ba3266f4983193c0d5f55c792a94368af28", token_id: "2"}
+  ]});
+  const body = await response.json();
+  assert.equal(body.source, "opensea-batch");
+  assert.deepEqual(body.nftTraits["1"], [{trait_type: "Sex", value: "Female"}, {trait_type: "Background", value: "Purple"}]);
+  assert.deepEqual(body.nftTraits["2"], [{trait_type: "Sex", value: "Male"}]);
+});
+
+test("traits batch rejects invalid token IDs or more than 50 NFTs", async () => {
+  for (const tokenIds of ["1,abc", Array.from({length: 51}, (_, i) => i + 1).join(",")]) {
+    const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x095b6ae2102094be8b5f06fac27275ddb9a8c70a&tokenIds=" + tokenIds), env: {OPENSEA_API: "private-test-key"}});
+    assert.equal(response.status, 400);
+  }
 });
 
 test("traits route preserves OpenSea rate-limit wait guidance", async t => {

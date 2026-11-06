@@ -225,6 +225,41 @@ test("preserves upstream OpenSea status and details for diagnosis", async () => 
 });
 
 
+test("proxies a paginated collection-wide OpenSea best-listing feed", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const requestUrl = new URL(String(url));
+    assert.equal(requestUrl.pathname, "/api/v2/listings/collection/base-punks/best");
+    assert.equal(requestUrl.searchParams.get("limit"), "200");
+    assert.equal(requestUrl.searchParams.get("next"), "page-two");
+    assert.equal(new Headers(init.headers).get("x-api-key"), "test-key");
+    return new Response(JSON.stringify({listings: [{asset: {contract: CONTRACT, identifier: "25"}, order_hash: HASH}], next: "page-three"}), {status: 200});
+  };
+  try {
+    const url = new URL("https://market.test/api/trade?action=collection-listings&contract=" + CONTRACT + "&limit=200&next=page-two");
+    const response = await onRequest({request: new Request(url), env: {OPENSEA_API: "test-key"}});
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.listings[0].asset.identifier, "25");
+    assert.equal(data.next, "page-three");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("validates collection listing contract and page limit before contacting OpenSea", async () => {
+  const invalidContract = await onRequest({
+    request: new Request("https://market.test/api/trade?action=collection-listings&contract=0x1111111111111111111111111111111111111111"),
+    env: {OPENSEA_API: "test-key"}
+  });
+  assert.equal(invalidContract.status, 400);
+  const invalidLimit = await onRequest({
+    request: new Request("https://market.test/api/trade?action=collection-listings&contract=" + CONTRACT + "&limit=201"),
+    env: {OPENSEA_API: "test-key"}
+  });
+  assert.equal(invalidLimit.status, 400);
+});
+
 test("uses current OpenSea best-listing endpoint and returns the UI-compatible shape", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {

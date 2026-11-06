@@ -14,6 +14,20 @@ function json(data, status = 200, headers = {}) {
     ...headers
   }});
 }
+function errorResponse(response, data) {
+  const retryAfter = response.headers.get("retry-after");
+  return json({
+    error: response.status === 429 ? "OpenSea rate limit reached; retry shortly." : "OpenSea traits are temporarily unavailable.",
+    providerStatus: response.status,
+    retryAfter,
+    details: data?.errors || data?.detail || data?.message || null
+  }, response.status === 429 ? 429 : 502, response.status === 429 && retryAfter ? {"retry-after": retryAfter} : {});
+}
+async function parseResponse(response) {
+  const body = await response.text();
+  try { return body ? JSON.parse(body) : {}; }
+  catch { throw new Error("OpenSea returned invalid JSON."); }
+}
 export async function onRequestGet({request, env}) {
   const url = new URL(request.url);
   const contract = String(url.searchParams.get("contract") || "").toLowerCase();
@@ -21,22 +35,39 @@ export async function onRequestGet({request, env}) {
   if (!slug) return json({error: "Unsupported collection contract."}, 400);
   const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
   if (!apiKey) return json({error: "OpenSea API is not configured on the server."}, 503);
+  const tokenIdsParam = url.searchParams.get("tokenIds");
   try {
+    if (tokenIdsParam !== null) {
+      const tokenIds = [...new Set(tokenIdsParam.split(",").map(id => id.trim()))];
+      if (!tokenIds.length || tokenIds.length > 50 || tokenIds.some(id => !/^(0|[1-9][0-9]{0,77})$/.test(id))) {
+        return json({error: "Provide 1 to 50 valid numeric token IDs."}, 400);
+      }
+      const response = await fetch(API + "/nfts/batch", {
+        method: "POST",
+        headers: {accept: "application/json", "content-type": "application/json", "x-api-key": apiKey},
+        body: JSON.stringify({identifiers: tokenIds.map(token_id => ({chain: "base", contract_address: contract, token_id}))})
+      });
+      const data = await parseResponse(response);
+      if (!response.ok) return errorResponse(response, data);
+      const nftTraits = {};
+      for (const nft of Array.isArray(data?.nfts) ? data.nfts : []) {
+        const id = String(nft?.identifier ?? "");
+        if (!tokenIds.includes(id)) continue;
+        nftTraits[id] = (Array.isArray(nft.traits) ? nft.traits : []).flatMap(trait => {
+          const type = String(trait?.trait_type ?? trait?.type ?? "").trim();
+          if (!type || trait?.value === undefined || trait?.value === null) return [];
+          return [{trait_type: type, value: String(trait.value), ...(trait.display_type ? {display_type: trait.display_type} : {})}];
+        });
+      }
+      return json({collection: slug, nftTraits, source: "opensea-batch"});
+    }
     const response = await fetch(API + "/traits/" + encodeURIComponent(slug), {
       headers: {accept: "application/json", "x-api-key": apiKey}
     });
-    const body = await response.text();
-    let data;
-    try { data = body ? JSON.parse(body) : {}; }
-    catch { return json({error: "OpenSea returned invalid trait data."}, 502); }
-    if (!response.ok) return json({
-      error: response.status === 429 ? "OpenSea rate limit reached; retry shortly." : "OpenSea traits are temporarily unavailable.",
-      providerStatus: response.status,
-      retryAfter: response.headers.get("retry-after") || null
-    }, response.status === 429 ? 429 : 502, response.status === 429 && response.headers.get("retry-after")
-      ? {"retry-after": response.headers.get("retry-after")} : {});
-    return json({collection: slug, traits: data.traits ?? data, source: "opensea"});
-  } catch {
-    return json({error: "Could not reach OpenSea traits API."}, 502);
+    const data = await parseResponse(response);
+    if (!response.ok) return errorResponse(response, data);
+    return json({collection: slug, traits: data?.traits ?? data, source: "opensea"});
+  } catch (error) {
+    return json({error: error?.message === "OpenSea returned invalid JSON." ? error.message : "Could not reach OpenSea traits API."}, 502);
   }
 }
