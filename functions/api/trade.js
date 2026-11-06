@@ -152,7 +152,7 @@ function validateSignedOrder(body, contract, tokenId, side, env) {
 }
 
 async function openSeaFetch(path, env, init = {}) {
-  const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
+  const apiKey = String(env.OPENSEA_API_KEY || "").trim();
   if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
   const response = await fetch(OPENSEA_API + path, {
     ...init,
@@ -291,7 +291,7 @@ export async function onRequest({ request, env }) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) return json({ error: "Listing page limit must be between 1 and 200." }, 400);
     const next = String(url.searchParams.get("next") || "");
     if (next.length > 2000) return json({ error: "Listing pagination cursor is too long." }, 400);
-    const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
+    const apiKey = String(env.OPENSEA_API_KEY || "").trim();
     if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
     const endpoint = "/listings/collection/" + encodeURIComponent(slug) + "/best?limit=" + limit + (next ? "&next=" + encodeURIComponent(next) : "");
     let response;
@@ -409,7 +409,7 @@ export async function onRequest({ request, env }) {
     // expected by the browser. A 404 means no best order exists for this NFT.
     const slug = COLLECTION_SLUGS.get(asset.contract);
     const endpoint = "/" + action + "/collection/" + slug + "/nfts/" + encodeURIComponent(asset.tokenId) + "/best";
-    const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
+    const apiKey = String(env.OPENSEA_API_KEY || "").trim();
     if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
     let response;
     try {

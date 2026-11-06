@@ -80,7 +80,7 @@ test("rejects fulfillment requests for a non-Base order", async () => {
   const body = fulfillmentBody({ listing: { ...fulfillmentBody().listing, chain: "ethereum" } });
   const response = await onRequest({
     request: request("fulfill-listing", body),
-    env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API: "test-key" }
+    env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API_KEY: "test-key" }
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /Only Base mainnet/);
@@ -109,7 +109,7 @@ test("uses same-chain listing fulfillment with an explicit Base chain", async ()
   try {
     const response = await onRequest({
       request: request("fulfill-listing", fulfillmentBody()),
-      env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API: "test-key" }
+      env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API_KEY: "test-key" }
     });
     assert.equal(response.status, 200);
     const data = await response.json();
@@ -124,7 +124,7 @@ test("rejects a mismatched Seaport protocol address", async () => {
   const body = fulfillmentBody({ listing: { ...fulfillmentBody().listing, protocol_address: "0x3333333333333333333333333333333333333333" } });
   const response = await onRequest({
     request: request("fulfill-listing", body),
-    env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API: "test-key" }
+    env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API_KEY: "test-key" }
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /does not match/);
@@ -134,7 +134,7 @@ test("rejects an NFT/token mismatch in the order", async () => {
   const body = fulfillmentBody({ listing: { ...fulfillmentBody().listing, asset: { contract: CONTRACT, identifier: "2" } } });
   const response = await onRequest({
     request: request("fulfill-listing", body),
-    env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API: "test-key" }
+    env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API_KEY: "test-key" }
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /must match/);
@@ -172,7 +172,7 @@ test("validates listing-action requests before contacting OpenSea", async () => 
   try {
     const response = await onRequest({
       request: request("listing-actions", body),
-      env: { OPENSEA_API: "test-key" }
+      env: { OPENSEA_API_KEY: "test-key" }
     });
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { steps: [] });
@@ -187,7 +187,7 @@ test("rejects listing-action requests for a mismatched NFT", async () => {
       address: "0x1111111111111111111111111111111111111111",
       items: [{ nft_id: "base/" + CONTRACT + "/2", quantity: 1, price: { currency: "ETH", amount: "0.05" }, end_time: futureIso(6) }]
     }),
-    env: { OPENSEA_API: "test-key" }
+    env: { OPENSEA_API_KEY: "test-key" }
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /must match/);
@@ -199,7 +199,7 @@ test("rejects non-positive listing prices", async () => {
       address: "0x1111111111111111111111111111111111111111",
       items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0" }, end_time: futureIso(6) }]
     }),
-    env: { OPENSEA_API: "test-key" }
+    env: { OPENSEA_API_KEY: "test-key" }
   });
   assert.equal(response.status, 400);
 });
@@ -213,7 +213,7 @@ test("preserves upstream OpenSea status and details for diagnosis", async () => 
   try {
     const response = await onRequest({
       request: request("listings", undefined, { method: "GET" }),
-      env: { OPENSEA_API: "test-key" }
+      env: { OPENSEA_API_KEY: "test-key" }
     });
     assert.equal(response.status, 502);
     const data = await response.json();
@@ -237,7 +237,7 @@ test("proxies a paginated collection-wide OpenSea best-listing feed", async () =
   };
   try {
     const url = new URL("https://market.test/api/trade?action=collection-listings&contract=" + CONTRACT + "&limit=200&next=page-two");
-    const response = await onRequest({request: new Request(url), env: {OPENSEA_API: "test-key"}});
+    const response = await onRequest({request: new Request(url), env: {OPENSEA_API_KEY: "test-key"}});
     assert.equal(response.status, 200);
     const data = await response.json();
     assert.equal(data.listings[0].asset.identifier, "25");
@@ -250,12 +250,12 @@ test("proxies a paginated collection-wide OpenSea best-listing feed", async () =
 test("validates collection listing contract and page limit before contacting OpenSea", async () => {
   const invalidContract = await onRequest({
     request: new Request("https://market.test/api/trade?action=collection-listings&contract=0x1111111111111111111111111111111111111111"),
-    env: {OPENSEA_API: "test-key"}
+    env: {OPENSEA_API_KEY: "test-key"}
   });
   assert.equal(invalidContract.status, 400);
   const invalidLimit = await onRequest({
     request: new Request("https://market.test/api/trade?action=collection-listings&contract=" + CONTRACT + "&limit=201"),
-    env: {OPENSEA_API: "test-key"}
+    env: {OPENSEA_API_KEY: "test-key"}
   });
   assert.equal(invalidLimit.status, 400);
 });
@@ -275,7 +275,7 @@ test("uses current OpenSea best-listing endpoint and returns the UI-compatible s
   try {
     const response = await onRequest({
       request: request("listings", undefined, { method: "GET" }),
-      env: { OPENSEA_API: "test-key" }
+      env: { OPENSEA_API_KEY: "test-key" }
     });
     assert.equal(response.status, 200);
     const data = await response.json();
@@ -293,7 +293,7 @@ test("returns an empty order list when OpenSea has no best offer", async () => {
   try {
     const response = await onRequest({
       request: request("offers", undefined, { method: "GET" }),
-      env: { OPENSEA_API: "test-key" }
+      env: { OPENSEA_API_KEY: "test-key" }
     });
     assert.equal(response.status, 200);
     const data = await response.json();
@@ -309,7 +309,7 @@ test("rejects listings longer than six months", async () => {
       address: "0x1111111111111111111111111111111111111111",
       items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0.05" }, end_time: tooLong }]
     }),
-    env: { OPENSEA_API: "test-key" }
+    env: { OPENSEA_API_KEY: "test-key" }
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /cannot be more than 6 month/);
@@ -338,7 +338,7 @@ test("builds Base OpenSea offer actions using WETH and a bounded expiry", async 
         price: { currency: WETH, amount: "0.2" },
         end_time: futureIso(1)
       }),
-      env: { OPENSEA_API: "test-key" }
+      env: { OPENSEA_API_KEY: "test-key" }
     });
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { steps: [] });
@@ -358,7 +358,7 @@ test("rejects an offer with a mismatched NFT before contacting OpenSea", async (
         price: { currency: WETH, amount: "0.2" },
         end_time: futureIso(1)
       }),
-      env: { OPENSEA_API: "test-key" }
+      env: { OPENSEA_API_KEY: "test-key" }
     });
     assert.equal(response.status, 400);
     assert.equal(called, false);
@@ -383,7 +383,7 @@ test("requests Base Seaport on-chain cancellation actions only for the matching 
   try {
     const response = await onRequest({
       request: request("cancel-actions", { address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: SEAPORT }),
-      env: { OPENSEA_API: "test-key" }
+      env: { OPENSEA_API_KEY: "test-key" }
     });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).steps.length, 1);
@@ -404,7 +404,7 @@ test("refuses cancellation when the connected wallet is not the OpenSea order ma
   try {
     const response = await onRequest({
       request: request("cancel-actions", { address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: SEAPORT }),
-      env: { OPENSEA_API: "test-key" }
+      env: { OPENSEA_API_KEY: "test-key" }
     });
     assert.equal(response.status, 403);
     assert.equal(cancellationRequested, false);
@@ -414,7 +414,7 @@ test("refuses cancellation when the connected wallet is not the OpenSea order ma
 test("rejects cancellation for a noncanonical protocol address", async () => {
   const response = await onRequest({
     request: request("cancel-actions", { address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: "0x3333333333333333333333333333333333333333" }),
-    env: { OPENSEA_API: "test-key" }
+    env: { OPENSEA_API_KEY: "test-key" }
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /canonical Base Seaport/);
@@ -428,7 +428,7 @@ test("publishes a signed six-month Base listing through the current OpenSea v2 e
     return new Response(JSON.stringify({ order_hash: HASH }), { status: 200, headers: { "content-type": "application/json" } });
   };
   try {
-    const response = await onRequest({ request: request("post-listing", signedOrderBody("listing", 6)), env: { OPENSEA_API: "test-key" } });
+    const response = await onRequest({ request: request("post-listing", signedOrderBody("listing", 6)), env: { OPENSEA_API_KEY: "test-key" } });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).order_hash, HASH);
   } finally { globalThis.fetch = originalFetch; }
@@ -439,7 +439,7 @@ test("rejects a signed listing longer than six months before posting", async () 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => { called = true; return new Response("{}", { status: 200 }); };
   try {
-    const response = await onRequest({ request: request("post-listing", signedOrderBody("listing", 7)), env: { OPENSEA_API: "test-key" } });
+    const response = await onRequest({ request: request("post-listing", signedOrderBody("listing", 7)), env: { OPENSEA_API_KEY: "test-key" } });
     assert.equal(response.status, 400);
     assert.match((await response.json()).error, /within 6 month/);
     assert.equal(called, false);
@@ -454,7 +454,7 @@ test("publishes a signed Base WETH offer through the current OpenSea v2 endpoint
     return new Response(JSON.stringify({ order_hash: HASH }), { status: 200, headers: { "content-type": "application/json" } });
   };
   try {
-    const response = await onRequest({ request: request("post-offer", signedOrderBody("offer", 1)), env: { OPENSEA_API: "test-key" } });
+    const response = await onRequest({ request: request("post-offer", signedOrderBody("offer", 1)), env: { OPENSEA_API_KEY: "test-key" } });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).order_hash, HASH);
   } finally { globalThis.fetch = originalFetch; }
@@ -467,7 +467,7 @@ test("rejects a signed order whose payment differs from the displayed user amoun
   try {
     const body = signedOrderBody("listing", 6);
     body.expected.amount = "0.1";
-    const response = await onRequest({ request: request("post-listing", body), env: { OPENSEA_API: "test-key" } });
+    const response = await onRequest({ request: request("post-listing", body), env: { OPENSEA_API_KEY: "test-key" } });
     assert.equal(response.status, 400);
     assert.match((await response.json()).error, /does not match the amount and currency/);
     assert.equal(called, false);
@@ -481,7 +481,7 @@ test("rejects a signed order that adds consideration in an unexpected currency",
   try {
     const body = signedOrderBody("listing", 6);
     body.parameters.consideration.push({ itemType: 1, token: WETH, identifierOrCriteria: "0", startAmount: "1", endAmount: "1", recipient: "0x1111111111111111111111111111111111111111" });
-    const response = await onRequest({ request: request("post-listing", body), env: { OPENSEA_API: "test-key" } });
+    const response = await onRequest({ request: request("post-listing", body), env: { OPENSEA_API_KEY: "test-key" } });
     assert.equal(response.status, 400);
     assert.match((await response.json()).error, /unsupported or additional payment token/);
     assert.equal(called, false);
@@ -495,7 +495,7 @@ test("rejects a listing that routes all payment away from the maker", async () =
   try {
     const body = signedOrderBody("listing", 6);
     body.parameters.consideration[0].recipient = "0x2222222222222222222222222222222222222222";
-    const response = await onRequest({ request: request("post-listing", body), env: { OPENSEA_API: "test-key" } });
+    const response = await onRequest({ request: request("post-listing", body), env: { OPENSEA_API_KEY: "test-key" } });
     assert.equal(response.status, 400);
     assert.match((await response.json()).error, /positive seller payout/);
     assert.equal(called, false);

@@ -237,7 +237,7 @@ export async function onRequestGet({request, env}) {
     return json({error:"Invalid pagination cursor."}, 400, forceRefresh);
   }
 
-  const openSeaKey = env.OPENSEA_API || env.OPENSEA_API_KEY;
+  const openSeaKey = env.OPENSEA_API_KEY;
   const isOpenSeaCursor = Boolean(next && next.startsWith("os_"));
   let openSeaCursor = null;
   try {
@@ -279,7 +279,7 @@ export async function onRequestGet({request, env}) {
   if (contract === BYTEBEASTS) {
     if (!openSeaKey) {
       return json({
-        error:"BYTEBEASTS requires OPENSEA_API in Cloudflare Pages; OpenSea is configured as the primary source.",
+        error:"BYTEBEASTS requires OPENSEA_API_KEY in Cloudflare Pages; OpenSea is configured as the primary source.",
         source:null
       }, 503, forceRefresh);
     }
@@ -465,7 +465,7 @@ export async function onRequestGet({request, env}) {
 
   return json({
     error:!configuredAlchemy
-      ? "Configure ALCHEMY_API (or ALCHEMY_API_KEY / ETHEREUM_API) or OPENSEA_API in Cloudflare Pages."
+      ? "Configure ALCHEMY_API (or ALCHEMY_API_KEY / ETHEREUM_API) or OPENSEA_API_KEY in Cloudflare Pages."
       : alchemyError === 429
         ? "Alchemy rate limit reached and no OpenSea fallback key is configured."
         : "Alchemy returned no collection items and no OpenSea fallback key is configured.",

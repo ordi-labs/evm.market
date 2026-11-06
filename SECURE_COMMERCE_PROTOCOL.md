@@ -4,7 +4,7 @@
 
 evm.market utilise OpenSea et le protocole Seaport sur Base mainnet (`chainId 8453 / 0x2105`) pour les NFT des contrats autorisés Base Punks (`0xb9110ba3266f4983193c0d5f55c792a94368af28`), NodeMonkes (`0x095b6ae2102094be8b5f06fac27275ddb9a8c70a`) et BYTEBEASTS (`0x7325654c657520e30c56a04225a3d9acdf895e55`). Le site interroge le meilleur listing et la meilleure offre OpenSea pour le NFT consulté; ce n’est pas un relevé exhaustif de tous les ordres d’une collection. Rarible n’est pas intégré.
 
-La clé d’API OpenSea (`OPENSEA_API_KEY` ou `OPENSEA_API`) reste côté Cloudflare Pages Functions. Elle permet les appels de service; elle n’est ni un portefeuille ni une signature. Les transactions nécessitent toujours la confirmation et la signature du portefeuille de l’utilisateur. Aucun secret ni private key utilisateur n’est transmis au serveur.
+La clé d’API OpenSea (`OPENSEA_API_KEY`) reste côté Cloudflare Pages Functions. Elle permet les appels de service; elle n’est ni un portefeuille ni une signature. Les transactions nécessitent toujours la confirmation et la signature du portefeuille de l’utilisateur. Aucun secret ni private key utilisateur n’est transmis au serveur.
 
 ## Parcours OpenSea pris en charge
 

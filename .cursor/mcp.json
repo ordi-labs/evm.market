@@ -3,7 +3,7 @@
     "OpenSea": {
       "url": "https://mcp.opensea.io/mcp",
       "headers": {
-        "X-API-KEY": "${env:OPENSEA_API}"
+        "X-API-KEY": "${env:OPENSEA_API_KEY}"
       }
     }
   }

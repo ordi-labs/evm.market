@@ -33,7 +33,7 @@ export async function onRequestGet({request, env}) {
   const contract = String(url.searchParams.get("contract") || "").toLowerCase();
   const slug = COLLECTIONS.get(contract);
   if (!slug) return json({error: "Unsupported collection contract."}, 400);
-  const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
+  const apiKey = String(env.OPENSEA_API_KEY || "").trim();
   if (!apiKey) return json({error: "OpenSea API is not configured on the server."}, 503);
   const tokenIdsParam = url.searchParams.get("tokenIds");
   try {

@@ -14,7 +14,7 @@ test("NFT route asks OpenSea for the selected real collection trait and normaliz
   };
   t.after(() => { globalThis.fetch = originalFetch; });
   const url = new URL("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&limit=2&traitType=Sex&traitValue=Female");
-  const response = await onRequestGet({request: new Request(url), env: {OPENSEA_API: "private-test-key"}});
+  const response = await onRequestGet({request: new Request(url), env: {OPENSEA_API_KEY: "private-test-key"}});
   assert.equal(response.status, 200);
   assert.equal(requested.url.pathname, "/api/v2/collection/base-punks/nfts");
   assert.deepEqual(JSON.parse(requested.url.searchParams.get("traits")), [{traitType: "Sex", value: "Female"}]);
@@ -27,7 +27,7 @@ test("NFT route asks OpenSea for the selected real collection trait and normaliz
 
 test("NFT route rejects incomplete or oversized trait filters", async () => {
   const url = new URL("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&traitType=Sex");
-  const response = await onRequestGet({request: new Request(url), env: {OPENSEA_API: "private-test-key"}});
+  const response = await onRequestGet({request: new Request(url), env: {OPENSEA_API_KEY: "private-test-key"}});
   assert.equal(response.status, 400);
 });
 
@@ -42,7 +42,7 @@ test("trait scan reads 50 OpenSea NFTs per page and returns all NFT attributes a
     ],next:"opaque-next-cursor"}),{status:200});
   };
   t.after(()=>{globalThis.fetch=originalFetch});
-  const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1&limit=50"),env:{OPENSEA_API:"private-test-key"}});
+  const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1&limit=50"),env:{OPENSEA_API_KEY:"private-test-key"}});
   assert.equal(response.status,200);
   assert.equal(requested.url.pathname,"/api/v2/chain/base/contract/0xb9110ba3266f4983193c0d5f55c792a94368af28/nfts");
   assert.equal(requested.url.searchParams.get("limit"),"50");
@@ -64,7 +64,7 @@ test("trait scan batch-loads attributes omitted from the paginated NFT feed",asy
     return new Response(JSON.stringify({nfts:[{identifier:"42",traits:[{trait_type:"Skin Tone",value:"Olive"},{trait_type:"Sex",value:"Female"}]}]}),{status:200});
   };
   t.after(()=>{globalThis.fetch=originalFetch});
-  const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1"),env:{OPENSEA_API:"private-test-key"}});
+  const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1"),env:{OPENSEA_API_KEY:"private-test-key"}});
   assert.equal(response.status,200);
   assert.equal(calls.length,2);
   assert.equal(calls[1].url.pathname,"/api/v2/nfts/batch");
@@ -83,7 +83,7 @@ test("trait scan follows provider cursors and clamps its page size at 50", async
   };
   t.after(()=>{globalThis.fetch=originalFetch});
   const cursor="os_"+btoa("cursor-page-2").replace(/=/g,"");
-  const response=await onRequestGet({request:new Request(`https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1&limit=100&next=${cursor}`),env:{OPENSEA_API:"private-test-key"}});
+  const response=await onRequestGet({request:new Request(`https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1&limit=100&next=${cursor}`),env:{OPENSEA_API_KEY:"private-test-key"}});
   assert.equal(response.status,200);
   assert.equal(requestedUrl.searchParams.get("limit"),"50");
   assert.equal(requestedUrl.searchParams.get("next"),"cursor-page-2");

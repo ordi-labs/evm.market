@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {onRequestGet} from "./traits.js";
 
 test("traits route only accepts the three configured collection contracts", async () => {
-  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x0000000000000000000000000000000000000001"), env: {OPENSEA_API: "test"}});
+  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x0000000000000000000000000000000000000001"), env: {OPENSEA_API_KEY: "test"}});
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /Unsupported collection/);
 });
@@ -17,7 +17,7 @@ test("traits route proxies the official collection facet endpoint", async t => {
     return new Response(JSON.stringify({categories: {Sex: "string"}, counts: {Sex: {Female: 10}}}), {status: 200});
   };
   t.after(() => { globalThis.fetch = originalFetch; });
-  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28"), env: {OPENSEA_API: "private-test-key"}});
+  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28"), env: {OPENSEA_API_KEY: "private-test-key"}});
   assert.equal(response.status, 200);
   assert.match(called, /\/traits\/base-punks$/);
   assert.match(response.headers.get("cache-control"), /s-maxage=300/);
@@ -37,7 +37,7 @@ test("traits route batches real NFT traits using exact Base identifiers", async 
     ]}), {status: 200});
   };
   t.after(() => { globalThis.fetch = originalFetch; });
-  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&tokenIds=1,2"), env: {OPENSEA_API: "private-test-key"}});
+  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&tokenIds=1,2"), env: {OPENSEA_API_KEY: "private-test-key"}});
   assert.equal(response.status, 200);
   assert.match(called, /\/nfts\/batch$/);
   assert.equal(init.method, "POST");
@@ -58,7 +58,7 @@ test("traits batch normalizes camelCase and key aliases for NodeMonkes", async t
     {traitType: "Head", value: "Crown"}, {key: "Eyes", value: "Laser"}
   ]}]}), {status: 200});
   t.after(() => { globalThis.fetch = originalFetch; });
-  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x095b6ae2102094be8b5f06fac27275ddb9a8c70a&tokenIds=8"), env: {OPENSEA_API: "private-test-key"}});
+  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x095b6ae2102094be8b5f06fac27275ddb9a8c70a&tokenIds=8"), env: {OPENSEA_API_KEY: "private-test-key"}});
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.deepEqual(body.nftTraits["8"], [{trait_type: "Head", value: "Crown"}, {trait_type: "Eyes", value: "Laser"}]);
@@ -66,7 +66,7 @@ test("traits batch normalizes camelCase and key aliases for NodeMonkes", async t
 
 test("traits batch rejects invalid token IDs or more than 50 NFTs", async () => {
   for (const tokenIds of ["1,abc", Array.from({length: 51}, (_, i) => i + 1).join(",")]) {
-    const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x095b6ae2102094be8b5f06fac27275ddb9a8c70a&tokenIds=" + tokenIds), env: {OPENSEA_API: "private-test-key"}});
+    const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x095b6ae2102094be8b5f06fac27275ddb9a8c70a&tokenIds=" + tokenIds), env: {OPENSEA_API_KEY: "private-test-key"}});
     assert.equal(response.status, 400);
   }
 });
@@ -75,7 +75,7 @@ test("traits route preserves OpenSea rate-limit wait guidance", async t => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({detail: "rate limited"}), {status: 429, headers: {"retry-after": "8"}});
   t.after(() => { globalThis.fetch = originalFetch; });
-  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x095b6ae2102094be8b5f06fac27275ddb9a8c70a"), env: {OPENSEA_API: "private-test-key"}});
+  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x095b6ae2102094be8b5f06fac27275ddb9a8c70a"), env: {OPENSEA_API_KEY: "private-test-key"}});
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("retry-after"), "8");
   assert.equal((await response.json()).providerStatus, 429);
