@@ -237,7 +237,7 @@ export async function onRequestGet({request, env}) {
     return json({error:"Invalid pagination cursor."}, 400, forceRefresh);
   }
 
-  const openSeaKey = env.OPENSEA_API_KEY;
+  const openSeaKey = env.OPENSEA_API_KEY || env.OPENSEA_API;
   const isOpenSeaCursor = Boolean(next && next.startsWith("os_"));
   let openSeaCursor = null;
   try {

@@ -91,7 +91,7 @@ export async function onRequestGet({request, env}) {
   // Keep OpenSea as a server-side fallback if Alchemy cannot return this NFT.
   let openSeaNft = null;
   let openSeaError = null;
-  const apiKey = env.OPENSEA_API_KEY;
+  const apiKey = env.OPENSEA_API_KEY || env.OPENSEA_API;
   if ((preferOpenSea || !alchemyNft || !hasUsableImage(alchemyNft)) && apiKey) {
     try {
       const endpoint = new URL("https://api.opensea.io/api/v2/chain/base/contract/" + contract + "/nfts/" + encodeURIComponent(tokenId));
