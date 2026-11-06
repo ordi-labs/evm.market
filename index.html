@@ -340,6 +340,7 @@ async function chooseWalletProvider(){
 }
 // Reown / WalletConnect Project ID is public client configuration, not a private key.
 const REOWN_PROJECT_ID="f981fcdc036a0a273c655b90030221e4";
+const APP_URL="https://evm-market-premium.pages.dev";
 let walletConnectProvider=null;
 async function connectWalletConnect(){
  // Remove both site overlays before loading Reown; either can obscure its QR modal.
@@ -359,7 +360,7 @@ async function connectWalletConnect(){
     showQrModal:true,
     methods:["eth_sendTransaction","personal_sign","eth_signTypedData","eth_signTypedData_v4"],
     events:["chainChanged","accountsChanged"],
-    metadata:{name:"evm.market",description:"NFT marketplace for Base",url:location.origin,icons:[location.origin+"/icons/icon.svg"]}
+    metadata:{name:"evm.market",description:"Verified NFT marketplace for Base",url:APP_URL,icons:[APP_URL+"/icons/icon.svg"]}
    });
   }
   walletChooserStatus("WalletConnect loaded. Choose your mobile wallet in the WalletConnect modal.");
@@ -403,7 +404,7 @@ async function switchToBase(provider){
  return baseChainId
 }
 let signatureVerifierPromise=null;
-async function signWalletChallenge(provider,address){const random=new Uint8Array(16);crypto.getRandomValues(random);const nonce=Array.from(random,b=>b.toString(16).padStart(2,"0")).join("");const issuedAt=new Date().toISOString();const message="evm.market wallet verification\nOrigin: "+location.origin+"\nAddress: "+address+"\nNetwork: Base Mainnet (8453)\nNonce: "+nonce+"\nIssued At: "+issuedAt+"\n\nSign this message only. It is not a transaction and grants no token or NFT approvals.";const bytes=new TextEncoder().encode(message);const messageHex="0x"+Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");const signature=await provider.request({method:"personal_sign",params:[messageHex,address]});if(!signatureVerifierPromise)signatureVerifierPromise=import("https://esm.sh/ethers@6.13.5?bundle");const ethers=await signatureVerifierPromise;const recovered=ethers.verifyMessage(message,signature);if(String(recovered).toLowerCase()!==String(address).toLowerCase())throw new Error("The message signature did not recover the connected wallet address.");return nonce}
+async function signWalletChallenge(provider,address){const random=new Uint8Array(16);crypto.getRandomValues(random);const nonce=Array.from(random,b=>b.toString(16).padStart(2,"0")).join("");const issuedAt=new Date().toISOString();const message=location.host+" wants you to sign in with your Ethereum account:\n"+address+"\n\nSign in to evm.market to verify wallet ownership. This signature is not a transaction and grants no token or NFT approvals.\n\nURI: "+location.origin+"\nVersion: 1\nChain ID: 8453\nNonce: "+nonce+"\nIssued At: "+issuedAt;const bytes=new TextEncoder().encode(message);const messageHex="0x"+Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");const signature=await provider.request({method:"personal_sign",params:[messageHex,address]});if(!signatureVerifierPromise)signatureVerifierPromise=import("https://esm.sh/ethers@6.13.5?bundle");const ethers=await signatureVerifierPromise;const recovered=ethers.verifyMessage(message,signature);if(String(recovered).toLowerCase()!==String(address).toLowerCase())throw new Error("The message signature did not recover the connected wallet address.");return nonce}
 function connect(provider=null,label="wallet"){
  if(!provider)return chooseWalletProvider();
  if(connectInFlight)return connectInFlight;
