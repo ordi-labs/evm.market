@@ -5,6 +5,8 @@ import { onRequest } from "../functions/api/trade.js";
 const CONTRACT = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const SEAPORT = "0x0000000000000068f116a894984e2db1123eb395";
 const HASH = "0x" + "a".repeat(64);
+const WETH = "0x4200000000000000000000000000000000000006";
+function futureIso(months) { const d = new Date(); const day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + months); const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(); d.setUTCDate(Math.min(day, last)); return d.toISOString(); }
 
 function request(action, body, { method = "POST", contract = CONTRACT, tokenId = "1" } = {}) {
   const url = new URL("https://market.test/api/trade");
@@ -18,6 +20,24 @@ function request(action, body, { method = "POST", contract = CONTRACT, tokenId =
   });
 }
 
+
+function signedOrderBody(side = "listing", expiryMonths = side === "listing" ? 6 : 1) {
+  const nft = { itemType: 2, token: CONTRACT, identifierOrCriteria: "1", startAmount: "1", endAmount: "1" };
+  const payment = { itemType: side === "listing" ? 0 : 1, token: side === "listing" ? "0x0000000000000000000000000000000000000000" : WETH, identifierOrCriteria: "0", startAmount: "50000000000000000", endAmount: "50000000000000000", ...(side === "listing" ? { recipient: "0x1111111111111111111111111111111111111111" } : {}) };
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    expected: { amount: "0.05", currency: side === "listing" ? "ETH" : "WETH" },
+    parameters: {
+      offerer: "0x1111111111111111111111111111111111111111",
+      offer: side === "listing" ? [nft] : [payment],
+      consideration: side === "listing" ? [payment] : [nft],
+      startTime: String(now),
+      endTime: String(Math.floor(Date.parse(futureIso(expiryMonths)) / 1000))
+    },
+    protocol_address: SEAPORT,
+    signature: "0x" + "1".repeat(130)
+  };
+}
 function fulfillmentBody(overrides = {}) {
   return {
     fulfiller: { address: "0x1111111111111111111111111111111111111111" },
@@ -133,7 +153,7 @@ test("fails closed when the server-side OpenSea API key is missing", async () =>
 test("validates listing-action requests before contacting OpenSea", async () => {
   const body = {
     address: "0x1111111111111111111111111111111111111111",
-    items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0.05" } }]
+    items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0.05" }, end_time: futureIso(6) }]
   };
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -144,6 +164,9 @@ test("validates listing-action requests before contacting OpenSea", async () => 
     assert.equal(Object.hasOwn(JSON.parse(init.body).items[0], "nft_id"), false, "OpenSea listing-actions schema rejects nft_id");
     assert.equal(JSON.parse(init.body).items[0].contract, CONTRACT);
     assert.equal(JSON.parse(init.body).items[0].token_id, "1");
+    assert.equal(JSON.parse(init.body).items[0].price.currency, "0x0000000000000000000000000000000000000000");
+    assert.ok(Date.parse(JSON.parse(init.body).items[0].end_time) > Date.now());
+    assert.ok(Date.parse(JSON.parse(init.body).items[0].end_time) <= Date.parse(futureIso(6)) + 60_000);
     return new Response(JSON.stringify({ steps: [] }), { status: 200, headers: { "content-type": "application/json" } });
   };
   try {
@@ -162,7 +185,7 @@ test("rejects listing-action requests for a mismatched NFT", async () => {
   const response = await onRequest({
     request: request("listing-actions", {
       address: "0x1111111111111111111111111111111111111111",
-      items: [{ nft_id: "base/" + CONTRACT + "/2", quantity: 1, price: { currency: "ETH", amount: "0.05" } }]
+      items: [{ nft_id: "base/" + CONTRACT + "/2", quantity: 1, price: { currency: "ETH", amount: "0.05" }, end_time: futureIso(6) }]
     }),
     env: { OPENSEA_API: "test-key" }
   });
@@ -174,7 +197,7 @@ test("rejects non-positive listing prices", async () => {
   const response = await onRequest({
     request: request("listing-actions", {
       address: "0x1111111111111111111111111111111111111111",
-      items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0" } }]
+      items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0" }, end_time: futureIso(6) }]
     }),
     env: { OPENSEA_API: "test-key" }
   });
@@ -241,5 +264,205 @@ test("returns an empty order list when OpenSea has no best offer", async () => {
     const data = await response.json();
     assert.deepEqual(data.orders, []);
     assert.deepEqual(data.offers, []);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects listings longer than six months", async () => {
+  const tooLong = futureIso(7);
+  const response = await onRequest({
+    request: request("listing-actions", {
+      address: "0x1111111111111111111111111111111111111111",
+      items: [{ nft_id: "base/" + CONTRACT + "/1", quantity: 1, price: { currency: "ETH", amount: "0.05" }, end_time: tooLong }]
+    }),
+    env: { OPENSEA_API: "test-key" }
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /cannot be more than 6 month/);
+});
+
+test("builds Base OpenSea offer actions using WETH and a bounded expiry", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith("/api/v2/offers/actions"));
+    assert.equal(init.method, "POST");
+    const payload = JSON.parse(init.body);
+    assert.equal(payload.address, "0x1111111111111111111111111111111111111111");
+    assert.deepEqual(payload.item, { chain: "base", contract: CONTRACT, token_id: "1" });
+    assert.equal(payload.price.currency, WETH);
+    assert.equal(payload.price.amount, "0.2");
+    assert.equal(payload.quantity, 1);
+    assert.ok(Date.parse(payload.end_time) > Date.now());
+    return new Response(JSON.stringify({ steps: [] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await onRequest({
+      request: request("offer-actions", {
+        address: "0x1111111111111111111111111111111111111111",
+        item: { chain: "base", contract: CONTRACT, token_id: "1" },
+        quantity: 1,
+        price: { currency: WETH, amount: "0.2" },
+        end_time: futureIso(1)
+      }),
+      env: { OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { steps: [] });
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects an offer with a mismatched NFT before contacting OpenSea", async () => {
+  let called = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { called = true; return new Response("{}", { status: 200 }); };
+  try {
+    const response = await onRequest({
+      request: request("offer-actions", {
+        address: "0x1111111111111111111111111111111111111111",
+        item: { chain: "base", contract: CONTRACT, token_id: "2" },
+        quantity: 1,
+        price: { currency: WETH, amount: "0.2" },
+        end_time: futureIso(1)
+      }),
+      env: { OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 400);
+    assert.equal(called, false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("requests Base Seaport on-chain cancellation actions only for the matching active maker order", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const target = String(url);
+    if (target.endsWith("/api/v2/orders/chain/base/protocol/" + SEAPORT + "/" + HASH)) {
+      return new Response(JSON.stringify({ order: {
+        chain: "base", status: "ACTIVE", order_hash: HASH, protocol_address: SEAPORT,
+        asset: { contract: CONTRACT, identifier: "1" }, remaining_quantity: 1,
+        protocol_data: { parameters: { offerer: "0x1111111111111111111111111111111111111111" } }
+      } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    assert.ok(target.endsWith("/api/v2/orders/chain/base/protocol/" + SEAPORT + "/" + HASH + "/cancel/actions"));
+    assert.equal(JSON.parse(init.body).address, "0x1111111111111111111111111111111111111111");
+    return new Response(JSON.stringify({ steps: [{ transaction: { chain: "base", to: SEAPORT, data: "0x12345678", value: "0" } }] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await onRequest({
+      request: request("cancel-actions", { address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: SEAPORT }),
+      env: { OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).steps.length, 1);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("refuses cancellation when the connected wallet is not the OpenSea order maker", async () => {
+  const originalFetch = globalThis.fetch;
+  let cancellationRequested = false;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/cancel/actions")) cancellationRequested = true;
+    return new Response(JSON.stringify({ order: {
+      chain: "base", status: "ACTIVE", order_hash: HASH, protocol_address: SEAPORT,
+      asset: { contract: CONTRACT, identifier: "1" }, remaining_quantity: 1,
+      protocol_data: { parameters: { offerer: "0x2222222222222222222222222222222222222222" } }
+    } }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await onRequest({
+      request: request("cancel-actions", { address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: SEAPORT }),
+      env: { OPENSEA_API: "test-key" }
+    });
+    assert.equal(response.status, 403);
+    assert.equal(cancellationRequested, false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects cancellation for a noncanonical protocol address", async () => {
+  const response = await onRequest({
+    request: request("cancel-actions", { address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: "0x3333333333333333333333333333333333333333" }),
+    env: { OPENSEA_API: "test-key" }
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /canonical Base Seaport/);
+});
+
+test("publishes a signed six-month Base listing through the current OpenSea v2 endpoint", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith("/api/v2/orders/base/seaport/listings"));
+    assert.equal(JSON.parse(init.body).protocol_address, SEAPORT);
+    return new Response(JSON.stringify({ order_hash: HASH }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await onRequest({ request: request("post-listing", signedOrderBody("listing", 6)), env: { OPENSEA_API: "test-key" } });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).order_hash, HASH);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects a signed listing longer than six months before posting", async () => {
+  let called = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { called = true; return new Response("{}", { status: 200 }); };
+  try {
+    const response = await onRequest({ request: request("post-listing", signedOrderBody("listing", 7)), env: { OPENSEA_API: "test-key" } });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /within 6 month/);
+    assert.equal(called, false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("publishes a signed Base WETH offer through the current OpenSea v2 endpoint", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith("/api/v2/orders/base/seaport/offers"));
+    assert.equal(JSON.parse(init.body).protocol_address, SEAPORT);
+    return new Response(JSON.stringify({ order_hash: HASH }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const response = await onRequest({ request: request("post-offer", signedOrderBody("offer", 1)), env: { OPENSEA_API: "test-key" } });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).order_hash, HASH);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects a signed order whose payment differs from the displayed user amount", async () => {
+  let called = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { called = true; return new Response("{}", { status: 200 }); };
+  try {
+    const body = signedOrderBody("listing", 6);
+    body.expected.amount = "0.1";
+    const response = await onRequest({ request: request("post-listing", body), env: { OPENSEA_API: "test-key" } });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /does not match the amount and currency/);
+    assert.equal(called, false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects a signed order that adds consideration in an unexpected currency", async () => {
+  let called = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { called = true; return new Response("{}", { status: 200 }); };
+  try {
+    const body = signedOrderBody("listing", 6);
+    body.parameters.consideration.push({ itemType: 1, token: WETH, identifierOrCriteria: "0", startAmount: "1", endAmount: "1", recipient: "0x1111111111111111111111111111111111111111" });
+    const response = await onRequest({ request: request("post-listing", body), env: { OPENSEA_API: "test-key" } });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /unsupported or additional payment token/);
+    assert.equal(called, false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects a listing that routes all payment away from the maker", async () => {
+  let called = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { called = true; return new Response("{}", { status: 200 }); };
+  try {
+    const body = signedOrderBody("listing", 6);
+    body.parameters.consideration[0].recipient = "0x2222222222222222222222222222222222222222";
+    const response = await onRequest({ request: request("post-listing", body), env: { OPENSEA_API: "test-key" } });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /positive seller payout/);
+    assert.equal(called, false);
   } finally { globalThis.fetch = originalFetch; }
 });

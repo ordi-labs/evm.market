@@ -10,6 +10,9 @@ const COLLECTION_SLUGS = new Map([
 const OPENSEA_API = "https://api.opensea.io/api/v2";
 const CHAIN = "base";
 const PROTOCOL = "seaport";
+const BASE_SEAPORT = "0x0000000000000068f116a894984e2db1123eb395";
+const BASE_WETH = "0x4200000000000000000000000000000000000006";
+const NATIVE_CURRENCY = "0x0000000000000000000000000000000000000000";
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -43,6 +46,54 @@ function getAssetParams(url) {
   return { contract, tokenId };
 }
 
+function expectedSeaportAddress(env) {
+  const configured = String(env.BASE_SEAPORT_ADDRESS || BASE_SEAPORT).trim().toLowerCase();
+  if (configured !== BASE_SEAPORT.toLowerCase()) {
+    throw new Error("Configured Seaport address does not match the canonical Base Seaport 1.6 deployment.");
+  }
+  return BASE_SEAPORT.toLowerCase();
+}
+
+function addUtcMonths(date, months) {
+  const result = new Date(date.getTime());
+  const day = result.getUTCDate();
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+  result.setUTCDate(Math.min(day, lastDay));
+  return result;
+}
+
+function validateEndTime(value, maxMonths, label) {
+  const end = Date.parse(String(value || ""));
+  const now = Date.now();
+  const maximum = addUtcMonths(new Date(now), maxMonths).getTime() + 60_000;
+  if (!Number.isFinite(end) || end <= now + 60_000) throw new Error(label + " end_time must be a valid future ISO 8601 date.");
+  if (end > maximum) throw new Error(label + " end_time cannot be more than " + maxMonths + " month(s) from now.");
+  return new Date(end).toISOString();
+}
+
+function validateOrderExpiration(parameters, side) {
+  const seconds = Number(parameters.endTime ?? parameters.end_time);
+  const start = Number(parameters.startTime ?? parameters.start_time);
+  const maxMonths = side === "listing" ? 6 : 1;
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(start) || start <= 0 || start > now + 60) {
+    throw new Error("The signed order must include a valid start time.");
+  }
+  const max = Math.floor(addUtcMonths(new Date(start * 1000), maxMonths).getTime() / 1000) + 60;
+  if (!Number.isSafeInteger(seconds) || seconds <= now + 60 || seconds <= start || seconds > max) {
+    throw new Error("The signed order must expire in the future and within " + maxMonths + " month(s) of its start time.");
+  }
+}
+
+function decimalAmountToUnits(value) {
+  const amount = String(value ?? "").trim();
+  if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/.test(amount) || !/[1-9]/.test(amount)) throw new Error("Expected order amount must be positive with up to 18 decimal places.");
+  const [whole, fraction = ""] = amount.split(".");
+  return BigInt(whole) * 10n ** 18n + BigInt(fraction.padEnd(18, "0") || "0");
+}
+
 function findAssetItem(items, contract, tokenId) {
   if (!Array.isArray(items)) return false;
   return items.some(item => {
@@ -57,18 +108,46 @@ function validateSignedOrder(body, contract, tokenId, side, env) {
   const parameters = body.parameters;
   const signature = body.signature;
   const protocolAddress = String(body.protocol_address || body.protocolAddress || "").toLowerCase();
-  const expectedProtocol = String(env.BASE_SEAPORT_ADDRESS || "").trim().toLowerCase();
-  if (!expectedProtocol || !/^0x[0-9a-f]{40}$/i.test(expectedProtocol)) {
-    throw new Error("BASE_SEAPORT_ADDRESS must be configured with the verified Base Seaport contract address.");
-  }
+  const expectedProtocol = expectedSeaportAddress(env);
   if (!parameters || typeof parameters !== "object" || Array.isArray(parameters)) throw new Error("Order parameters are required.");
   if (!/^0x[0-9a-f]{128}(?:[0-9a-f]{2})?$/i.test(String(signature || ""))) throw new Error("A 64- or 65-byte order signature is required.");
   if (!/^0x[0-9a-f]{40}$/i.test(protocolAddress) || protocolAddress !== expectedProtocol) throw new Error("Order protocol address does not match the configured Base Seaport contract.");
   const nftItems = side === "listing" ? parameters.offer : parameters.consideration;
-  if (!findAssetItem(nftItems, contract, tokenId)) throw new Error("The signed order does not include the requested allowlisted NFT and token ID on the expected side.");
+  const matchingNfts = Array.isArray(nftItems) ? nftItems.filter(item => String(item?.token || "").toLowerCase() === contract && String(item?.identifierOrCriteria ?? "") === tokenId) : [];
+  if (matchingNfts.length !== 1) throw new Error("The signed order must include exactly the requested allowlisted NFT and token ID on the expected side.");
+  const nftItem = matchingNfts[0];
+  if (Number(nftItem.itemType) !== 2 || String(nftItem.startAmount) !== "1" || String(nftItem.endAmount) !== "1") throw new Error("Only a single ERC-721 NFT order is supported.");
   const counterItems = side === "listing" ? parameters.consideration : parameters.offer;
   if (!Array.isArray(counterItems) || counterItems.length === 0) throw new Error("Order consideration/payment items are required.");
-  if (!/^0x[0-9a-f]{40}$/i.test(String(parameters.offerer || ""))) throw new Error("Order offerer address is invalid.");
+  const expected = body.expected;
+  const expectedCurrency = String(expected?.currency || "").trim().toUpperCase();
+  if (side === "offer" && expectedCurrency !== "WETH") throw new Error("Offers are restricted to WETH on Base.");
+  if (side === "listing" && !["ETH", "WETH"].includes(expectedCurrency)) throw new Error("Listings are restricted to ETH or WETH on Base.");
+  const expectedAmount = decimalAmountToUnits(expected?.amount);
+  const offerer = String(parameters.offerer || "").toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/i.test(offerer)) throw new Error("Order offerer address is invalid.");
+  const expectedToken = expectedCurrency === "ETH" ? NATIVE_CURRENCY.toLowerCase() : BASE_WETH.toLowerCase();
+  const expectedItemType = expectedCurrency === "ETH" ? 0 : 1;
+  let startTotal = 0n;
+  let endTotal = 0n;
+  let sellerTotal = 0n;
+  for (const item of counterItems) {
+    if (Number(item?.itemType) !== expectedItemType || String(item?.token || "").toLowerCase() !== expectedToken) throw new Error("The signed order contains an unsupported or additional payment token.");
+    const startAmount = String(item?.startAmount ?? "");
+    const endAmount = String(item?.endAmount ?? "");
+    if (!/^\d+$/.test(startAmount) || !/^\d+$/.test(endAmount) || BigInt(startAmount) <= 0n || BigInt(endAmount) <= 0n) throw new Error("The signed order contains an invalid payment amount.");
+    if (side === "listing") {
+      const recipient = String(item?.recipient || "").toLowerCase();
+      if (!/^0x[0-9a-f]{40}$/i.test(recipient) || recipient === NATIVE_CURRENCY.toLowerCase()) throw new Error("Listing payment recipient is invalid.");
+      if (startAmount !== endAmount) throw new Error("Variable-price listing payouts are not supported.");
+      if (recipient === offerer) sellerTotal += BigInt(startAmount);
+    }
+    startTotal += BigInt(startAmount);
+    endTotal += BigInt(endAmount);
+  }
+  if (startTotal !== expectedAmount || endTotal !== expectedAmount) throw new Error("The signed order payment does not match the amount and currency shown to the user.");
+  if (side === "listing" && sellerTotal <= 0n) throw new Error("The listing must direct a positive seller payout to the connected maker.");
+  validateOrderExpiration(parameters, side);
   return { parameters, protocol_address: protocolAddress, signature };
 }
 
@@ -104,8 +183,7 @@ function validateFulfillmentRequest(body, asset, side, env) {
   const hash = String(order.order_hash || order.hash || "").trim();
   if (!/^0x[0-9a-f]{64}$/i.test(hash)) throw new Error("A valid Seaport order hash is required.");
   const protocolAddress = String(order.protocol_address || "").toLowerCase();
-  const expectedProtocol = String(env.BASE_SEAPORT_ADDRESS || "").trim().toLowerCase();
-  if (!expectedProtocol || !/^0x[0-9a-f]{40}$/i.test(expectedProtocol)) throw new Error("BASE_SEAPORT_ADDRESS must be configured with the verified Base Seaport contract address.");
+  const expectedProtocol = expectedSeaportAddress(env);
   if (protocolAddress !== expectedProtocol) throw new Error("Order protocol address does not match the configured Base Seaport contract.");
   const chain = String(order.chain || "").toLowerCase();
   if (chain !== "base") throw new Error("Only Base mainnet orders are supported.");
@@ -144,23 +222,55 @@ function validateListingActionsRequest(body, asset) {
   if (item.quantity !== 1) throw new Error("Only a quantity of one NFT is supported.");
   const price = item.price;
   if (!price || typeof price !== "object" || Array.isArray(price)) throw new Error("A positive listing price is required.");
-  const currency = String(price.currency || "").trim();
+  const currency = String(price.currency || "").trim().toUpperCase();
   const amount = String(price.amount ?? "").trim();
-  if (!/^(ETH|WETH)$/i.test(currency)) throw new Error("Only ETH or WETH listing currency is currently supported.");
-  if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(amount) || !/[1-9]/.test(amount)) throw new Error("Listing price must be a positive decimal amount.");
+  if (!/^(ETH|WETH)$/.test(currency)) throw new Error("Only Base ETH or WETH listing currency is currently supported.");
+  if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/.test(amount) || !/[1-9]/.test(amount)) throw new Error("Listing price must be a positive decimal amount with up to 18 decimal places.");
+  const endTime = validateEndTime(item.end_time, 6, "Listing");
   return {
     address,
     items: [{
-      // OpenSea requires the chain on each listing item (not at top level).
       chain: CHAIN,
       contract: asset.contract,
       token_id: asset.tokenId,
+      end_time: endTime,
       quantity: 1,
-      price: { currency: currency.toUpperCase(), amount }
+      // OpenSea expects the payment-token contract; zero address denotes Base ETH.
+      price: { currency: currency === "ETH" ? NATIVE_CURRENCY : BASE_WETH, amount }
     }],
     use_creator_fee: body.use_creator_fee !== false,
     ...(body.taker && /^0x[0-9a-f]{40}$/i.test(String(body.taker)) ? { taker: String(body.taker) } : {})
   };
+}
+
+function validateOfferActionsRequest(body, asset) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("An offer request object is required.");
+  const address = String(body.address || "").trim();
+  if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new Error("A valid connected bidder wallet address is required.");
+  if (body.quantity !== 1) throw new Error("Only an offer for one NFT is supported.");
+  const item = body.item;
+  if (!item || String(item.chain || "").toLowerCase() !== CHAIN || String(item.contract || "").toLowerCase() !== asset.contract || String(item.token_id ?? "") !== asset.tokenId) {
+    throw new Error("The offer item must match the requested allowlisted Base NFT and token ID.");
+  }
+  const price = body.price;
+  if (!price || typeof price !== "object" || Array.isArray(price)) throw new Error("A positive offer price is required.");
+  const currency = String(price.currency || "").trim().toLowerCase();
+  if (currency !== BASE_WETH.toLowerCase()) throw new Error("Offers currently require canonical WETH on Base.");
+  const amount = String(price.amount ?? "").trim();
+  if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/.test(amount) || !/[1-9]/.test(amount)) throw new Error("Offer amount must be positive with up to 18 decimal places.");
+  const endTime = validateEndTime(body.end_time, 1, "Offer");
+  return { address, item: { chain: CHAIN, contract: asset.contract, token_id: asset.tokenId }, quantity: 1, price: { currency: BASE_WETH, amount }, end_time: endTime, use_creator_fee: false };
+}
+
+function validateCancellationRequest(body, env) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A cancellation request object is required.");
+  const address = String(body.address || "").trim();
+  const orderHash = String(body.order_hash || body.orderHash || "").trim();
+  const protocolAddress = String(body.protocol_address || body.protocolAddress || "").trim().toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new Error("A valid connected order-maker wallet is required.");
+  if (!/^0x[0-9a-f]{64}$/i.test(orderHash)) throw new Error("A valid OpenSea order hash is required.");
+  if (protocolAddress !== expectedSeaportAddress(env)) throw new Error("Only the canonical Base Seaport 1.6 protocol can be cancelled here.");
+  return { address, orderHash, protocolAddress };
 }
 
 export async function onRequest({ request, env }) {
@@ -218,6 +328,38 @@ export async function onRequest({ request, env }) {
     });
   }
 
+
+  if (request.method === "POST" && action === "offer-actions") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "Request body must be valid JSON." }, 400); }
+    let offerRequest;
+    try { offerRequest = validateOfferActionsRequest(body, asset); }
+    catch (error) { return json({ error: error.message }, 400); }
+    return openSeaFetch("/offers/actions", env, { method: "POST", body: JSON.stringify(offerRequest) });
+  }
+
+  if (request.method === "POST" && action === "cancel-actions") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "Request body must be valid JSON." }, 400); }
+    let cancellation;
+    try { cancellation = validateCancellationRequest(body, env); }
+    catch (error) { return json({ error: error.message }, 400); }
+    const orderPath = "/orders/chain/" + CHAIN + "/protocol/" + cancellation.protocolAddress + "/" + cancellation.orderHash;
+    const orderResponse = await openSeaFetch(orderPath, env);
+    if (!orderResponse.ok) return orderResponse;
+    let orderPayload;
+    try { orderPayload = await orderResponse.json(); } catch { return json({ error: "OpenSea returned invalid order data." }, 502); }
+    const order = orderPayload?.order || orderPayload;
+    const orderAsset = order?.asset;
+    const maker = String(order?.protocol_data?.parameters?.offerer || order?.protocolData?.parameters?.offerer || "").toLowerCase();
+    if (String(order?.order_hash || "").toLowerCase() !== cancellation.orderHash.toLowerCase() || String(order?.chain || "").toLowerCase() !== CHAIN || String(order?.protocol_address || "").toLowerCase() !== cancellation.protocolAddress || String(orderAsset?.contract || "").toLowerCase() !== asset.contract || String(orderAsset?.identifier ?? "") !== asset.tokenId) {
+      return json({ error: "The OpenSea order does not match this Base NFT and protocol." }, 400);
+    }
+    if (maker !== cancellation.address.toLowerCase()) return json({ error: "Only the connected maker may cancel this OpenSea order." }, 403);
+    if (String(order?.status || "").toUpperCase() !== "ACTIVE" || Number(order?.remaining_quantity ?? 0) <= 0) return json({ error: "This OpenSea order is not active and cannot be cancelled here." }, 409);
+    const path = orderPath + "/cancel/actions";
+    return openSeaFetch(path, env, { method: "POST", body: JSON.stringify({ address: cancellation.address }) });
+  }
 
   if (request.method === "POST" && action === "listing-actions") {
     let body;
