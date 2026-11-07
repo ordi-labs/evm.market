@@ -324,21 +324,20 @@ export async function onRequest({ request, env }) {
     // This returns transaction calldata only. The browser must show the transaction
     // summary and ask the connected wallet to sign/send it; this Worker never signs.
     if (side === "listing") {
-      // Same-chain Base purchase paid in Base ETH: use the standard fulfillment
-      // endpoint, not the cross-chain endpoint with its different request schema.
+      // The same-chain endpoint returns a decoded Seaport struct with input_data.
+      // Use the cross-chain endpoint even for Base/ETH so the browser receives
+      // ready-to-send hex calldata and never has to ABI-encode a fulfillment.
       const listing = fulfillmentRequest.listing;
-      return openSeaFetch("/listings/fulfillment_data", env, {
+      return openSeaFetch("/listings/cross_chain_fulfillment_data", env, {
         method: "POST",
         body: JSON.stringify({
-          listing: {
+          listings: [{
             hash: listing.hash,
             chain: CHAIN,
             protocol_address: listing.protocol_address
-          },
+          }],
           fulfiller: fulfillmentRequest.fulfiller,
-          consideration: fulfillmentRequest.consideration,
-          include_optional_creator_fees: fulfillmentRequest.include_optional_creator_fees,
-          ...(fulfillmentRequest.recipient ? { recipient: fulfillmentRequest.recipient } : {})
+          payment: { chain: CHAIN, address: NATIVE_CURRENCY }
         })
       });
     }
