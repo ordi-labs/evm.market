@@ -372,20 +372,48 @@ function walletChooserStatus(message,isError=false){
  status.classList.toggle("visible",Boolean(message));
  status.classList.toggle("error",Boolean(isError));
 }
+async function discoverInjectedWallets(){
+ const found=new Map();
+ const add=(provider,info={})=>{
+  if(!provider||typeof provider.request!=="function"||found.has(provider))return;
+  const name=String(info.name||(provider.isMetaMask?"MetaMask":provider.isCoinbaseWallet?"Coinbase Wallet":provider.isBraveWallet?"Brave Wallet":provider.isRabby?"Rabby":provider.isTrust?"Trust Wallet":"Browser wallet"));
+  found.set(provider,{provider,name});
+ };
+ const onAnnounce=event=>add(event.detail?.provider,event.detail?.info||{});
+ window.addEventListener("eip6963:announceProvider",onAnnounce);
+ window.dispatchEvent(new Event("eip6963:requestProvider"));
+ await new Promise(resolve=>setTimeout(resolve,300));
+ window.removeEventListener("eip6963:announceProvider",onAnnounce);
+ const injected=window.ethereum;
+ const legacy=Array.isArray(injected?.providers)?injected.providers:(injected?[injected]:[]);
+ legacy.forEach((provider,index)=>add(provider,{name:provider.isMetaMask?"MetaMask":provider.isCoinbaseWallet?"Coinbase Wallet":provider.isBraveWallet?"Brave Wallet":provider.isRabby?"Rabby":provider.isTrust?"Trust Wallet":legacy.length>1?`Browser wallet ${index+1}`:"Browser wallet"}));
+ return Array.from(found.values()).slice(0,15);
+}
 async function chooseWalletProvider(){
  const chooser=$("walletChooser"),list=$("walletOptions");
  chooser.classList.add("open");chooser.setAttribute("aria-hidden","false");
- walletChooserStatus("");
+ walletChooserStatus("Looking for installed browser wallet extensions…");
  list.replaceChildren();
+ const injectedWallets=await discoverInjectedWallets();
+ if(!chooser.classList.contains("open"))return;
+ for(const wallet of injectedWallets){
+  const button=document.createElement("button");button.type="button";button.className="wallet-option";
+  const icon=document.createElement("span");icon.className="wallet-option-icon";icon.textContent=wallet.name.slice(0,1).toUpperCase();
+  const name=document.createElement("span");name.className="wallet-option-name";name.textContent=wallet.name;
+  const sub=document.createElement("small");sub.textContent="Connect directly to this installed wallet extension";
+  const copy=document.createElement("span");copy.className="wallet-option-copy";copy.append(name,sub);button.append(icon,copy);
+  button.addEventListener("click",()=>{walletConnectProvider=wallet.provider;closeWalletChooser();connect(wallet.provider,wallet.name)});
+  list.append(button);
+ }
  const wcButton=document.createElement("button");wcButton.type="button";wcButton.className="wallet-option";
  const wcIcon=document.createElement("span");wcIcon.className="wallet-option-icon";wcIcon.textContent="↗";
  const wcName=document.createElement("span");wcName.className="wallet-option-name";wcName.textContent="WalletConnect · Reown";
- const wcSub=document.createElement("small");wcSub.textContent="Connect securely with QR code or a compatible wallet";
+ const wcSub=document.createElement("small");wcSub.textContent="Open mobile wallets or connect by QR code";
  const wcCopy=document.createElement("span");wcCopy.className="wallet-option-copy";wcCopy.append(wcName,wcSub);
  wcButton.append(wcIcon,wcCopy);
  wcButton.addEventListener("click",()=>connectWalletConnect());
  list.append(wcButton);
- walletChooserStatus("Choose a browser wallet extension or connect a mobile wallet with WalletConnect.");
+ walletChooserStatus(injectedWallets.length?"Choose an extension to connect directly, or use WalletConnect.":"No extension provider was detected in this app window. Use WalletConnect or open the site in your wallet-enabled browser.");
 }
 // Reown / WalletConnect Project ID is public client configuration, not a private key.
 const REOWN_PROJECT_ID="f981fcdc036a0a273c655b90030221e4";
