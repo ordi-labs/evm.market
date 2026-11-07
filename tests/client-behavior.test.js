@@ -75,4 +75,11 @@ test("confirmed purchases invalidate ownership and listing state before rerender
   assert.match(purchase, /liveListings\.delete\(listingKey\(contract,id\)\);/);
   assert.match(purchase, /render\(\);return/);
 });
+test("listed and unlisted filters both prepare the full collection and listing indexes", () => {
+  assert.match(html, /async function prepareListingFilter\(contract\)/);
+  assert.match(html, /ensureFullTraitIndex\(contract\);/);
+  assert.match(html, /await loadCollectionListings\(contract\);/);
+  assert.match(html, /\["listed","unlisted"\]\.includes\(\$\("listingFilter"\)\.value\)/);
+  assert.match(html, /if\(\["listed","unlisted"\]\.includes\(\$\("listingFilter"\)\.value\)\)prepareListingFilter\(contract\);/);
+});
 
