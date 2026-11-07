@@ -1,8 +1,10 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
-const COLLECTION_SLUGS = new Map([[PUNKS,"base-punks"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"]]);
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS]);
+const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
+const COLLECTION_SLUGS = new Map([[PUNKS,"base-punks"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[CRYPTOPUNKS_BASE,"cryptopunks-base"]]);
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, CRYPTOPUNKS_BASE]);
+const OPENSEA_PRIMARY = new Set([BYTEBEASTS, CRYPTOPUNKS_BASE]);
 
 const json = (data, status = 200, forceRefresh = false) => {
   const headers = {
@@ -151,8 +153,8 @@ function normalizeOpenSeaNft(n, contract) {
       attributes: Array.isArray(n.traits) ? n.traits : Array.isArray(metadata.attributes) ? metadata.attributes : Array.isArray(n.attributes) ? n.attributes : []
     },
     opensea_url: tokenId
-      ? "https://og.rarible.com/token/base/" + contract + ":" + encodeURIComponent(tokenId)
-      : "https://og.rarible.com/collection/base/" + contract + "/items"
+      ? "https://opensea.io/assets/base/" + contract + "/" + encodeURIComponent(tokenId)
+      : "https://opensea.io/collection/" + (COLLECTION_SLUGS.get(contract) || "") + "?status=all"
   };
 }
 
@@ -281,12 +283,11 @@ export async function onRequestGet({request, env}) {
     }
   }
 
-  // BYTEBEASTS: use OpenSea as the authoritative collection feed.
-  // Alchemy's Base cache has been returning unrevealed/pre-mint artwork.
-  if (contract === BYTEBEASTS) {
+  // BYTEBEASTS and CryptoPunks [Base] use OpenSea as their authoritative collection feed.
+  if (OPENSEA_PRIMARY.has(contract)) {
     if (!openSeaKey) {
       return json({
-        error:"BYTEBEASTS requires OPENSEA_API_KEY in Cloudflare Pages; OpenSea is configured as the primary source.",
+        error:"This collection requires OPENSEA_API_KEY in Cloudflare Pages; OpenSea is configured as the primary source.",
         source:null
       }, 503, forceRefresh);
     }
@@ -302,7 +303,7 @@ export async function onRequestGet({request, env}) {
         return json({
           error:result.status === 429
             ? "OpenSea rate limit reached. Retry shortly."
-            : "OpenSea could not return BYTEBEASTS metadata.",
+            : "OpenSea could not return collection metadata.",
           upstreamStatus:result.status,
           source:"opensea"
         }, result.status === 429 ? 429 : 502, true);
@@ -315,11 +316,11 @@ export async function onRequestGet({request, env}) {
         fetchedAt:new Date().toISOString()
       }, 200, true);
     } catch {
-      return json({error:"OpenSea BYTEBEASTS feed is temporarily unavailable.",source:"opensea"}, 502, true);
+      return json({error:"OpenSea collection feed is temporarily unavailable.",source:"opensea"}, 502, true);
     }
   }
 
-  // Alchemy remains primary for PUNKS and NODEMONKES; OpenSea is their fallback.
+  // Alchemy remains primary for Base Punks and NodeMonkes; OpenSea is their fallback.
   let alchemyError = null;
   const configuredAlchemy = contract === NODEMONKES
     ? (env.ETHEREUM_API || env.ALCHEMY_API_KEY || env.ALCHEMY_API)

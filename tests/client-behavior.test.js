@@ -66,8 +66,15 @@ test("the first NFT-card render resolves its listing state before reading the pr
   assert.match(html, /loadLiveListing\(n,contract\);const listing=activeListing\(n\);price\.textContent=/);
 });
 
-test("owned view is exposed as a wallet-scoped mode for the three configured collections", () => {
+test("owned view is exposed as a wallet-scoped mode for all configured collections", () => {
   assert.match(html, /id="ownedByMe"/);
   assert.match(html, /requestedOwned\?"\/api\/owned"/);
   assert.match(html, /ownedByMe/);
+});
+
+
+test("CryptoPunks [Base] is selectable with its verified Base contract and OpenSea slug", () => {
+  assert.match(html, /data-collection="cryptopunksbase"/);
+  assert.match(html, /name:"CryptoPunks \[Base\]",contract:"0x18d91b5597f1a7227d2960945c9a1417f0ff721d",slug:"cryptopunks-base"/);
+  assert.match(html, /Four collections/);
 });

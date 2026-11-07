@@ -1,11 +1,13 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS]);
+const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, CRYPTOPUNKS_BASE]);
 const COLLECTION_SLUGS = new Map([
   [PUNKS, "base-punks"],
   [NODEMONKES, "nodemonkes"],
-  [BYTEBEASTS, "bytebeasts-base"]
+  [BYTEBEASTS, "bytebeasts-base"],
+  [CRYPTOPUNKS_BASE, "cryptopunks-base"]
 ]);
 const OPENSEA_API = "https://api.opensea.io/api/v2";
 const CHAIN = "base";

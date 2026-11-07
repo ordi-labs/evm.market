@@ -2,7 +2,7 @@ import {test} from "node:test";
 import assert from "node:assert/strict";
 import {onRequestGet} from "./traits.js";
 
-test("traits route only accepts the three configured collection contracts", async () => {
+test("traits route rejects contracts outside the configured collection allowlist", async () => {
   const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x0000000000000000000000000000000000000001"), env: {OPENSEA_API_KEY: "test"}});
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /Unsupported collection/);
@@ -79,4 +79,19 @@ test("traits route preserves OpenSea rate-limit wait guidance", async t => {
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("retry-after"), "8");
   assert.equal((await response.json()).providerStatus, 429);
+});
+
+
+test("CryptoPunks [Base] traits resolve through its OpenSea collection slug", async t => {
+  const originalFetch = globalThis.fetch;
+  let called = "";
+  globalThis.fetch = async url => {
+    called = String(url);
+    return new Response(JSON.stringify({traits: {categories: {}}}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0x18d91b5597f1a7227d2960945c9a1417f0ff721d"), env: {OPENSEA_API_KEY: "private-test-key"}});
+  assert.equal(response.status, 200);
+  assert.match(called, /\/traits\/cryptopunks-base$/);
+  assert.equal((await response.json()).collection, "cryptopunks-base");
 });

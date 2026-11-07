@@ -115,3 +115,20 @@ test("trait scan rejects opaque or empty OpenSea cursors instead of restarting p
   }
   assert.equal(calls,0);
 });
+
+
+test("CryptoPunks [Base] collection feed is served from its OpenSea contract endpoint", async t => {
+  const originalFetch = globalThis.fetch;
+  let requested;
+  globalThis.fetch = async url => {
+    requested = new URL(String(url));
+    return new Response(JSON.stringify({nfts: [{identifier: "7", name: "CryptoPunk #7", traits: []}], next: null}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequestGet({request: new Request("https://site.test/api/nfts?contract=0x18d91b5597f1a7227d2960945c9a1417f0ff721d&limit=2"), env: {OPENSEA_API_KEY: "private-test-key"}});
+  assert.equal(response.status, 200);
+  assert.equal(requested.pathname, "/api/v2/chain/base/contract/0x18d91b5597f1a7227d2960945c9a1417f0ff721d/nfts");
+  const body = await response.json();
+  assert.equal(body.source, "opensea");
+  assert.equal(body.nfts[0].identifier, "7");
+});

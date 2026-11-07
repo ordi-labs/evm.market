@@ -1,10 +1,12 @@
 # evm.market
 
-Premium Base NFT collection explorer for Base Punks and NodeMonkes. This repository is dedicated to evm.market and does not modify the existing wallet or ordinal sites.
+Premium Base NFT collection explorer for Base Punks, NodeMonkes, BYTEBEASTS and CryptoPunks [Base]. This repository is dedicated to evm.market and does not modify the existing wallet or ordinal sites.
 
 ## Collections
-- Base Punks: 0xb9110ba3266f4983193c0d5f55c792a94368af28
-- NodeMonkes: 0x095b6ae2102094be8b5f06fac27275ddb9a8c70a
+- Base Punks: 0xb9110ba3266f4983193c0d5f55c792a94368af28 (`base-punks`)
+- NodeMonkes: 0x095b6ae2102094be8b5f06fac27275ddb9a8c70a (`nodemonkes`)
+- BYTEBEASTS: 0x7325654c657520e30c56a04225a3d9acdf895e55 (`bytebeasts-base`)
+- CryptoPunks [Base]: 0x18d91b5597f1a7227d2960945c9a1417f0ff721d (`cryptopunks-base`)
 
 ## Cloudflare Pages
 - Project: evm-market-premium
@@ -20,7 +22,7 @@ Responsive collection browsing, contract allowlisting, search, cursor pagination
 ## Seaport integration status
 A server-side foundation is being prepared in `functions/api/trade.js`:
 - Uses the OpenSea API from Cloudflare Pages Functions, keeping the API key out of browser code.
-- Restricts trade API calls to Base (`base`) and the two allowlisted collection contracts.
+- Restricts trade API calls to Base (`base`) and the four allowlisted collection contracts.
 - Supports reading listing/offer data and submitting an already wallet-signed listing/offer payload after basic structure, signature-format, contract, and token-ID validation.
 
 **Native trading is partially implemented and must not be considered production-ready until live Base tests pass.** Buy prepares an OpenSea Seaport fulfillment transaction and asks the connected wallet to send it; listing uses OpenSea listing actions and wallet signing/approval. Bid/offer uses the validated OpenSea actions flow. The `/api/rpc` endpoint uses `ETHEREUM_API` (a Base-compatible HTTPS JSON-RPC endpoint) or the Alchemy Base API for read-only ownership checks and transaction receipt confirmation. It explicitly blocks transaction submission methods: the user wallet must approve and submit every transaction. Configure `OPENSEA_API_KEY` and `BASE_SEAPORT_ADDRESS` as Cloudflare Pages secrets before exercising write endpoints. `BASE_SEAPORT_ADDRESS` must be the verified Seaport contract address for Base; the route fails closed if it is missing.

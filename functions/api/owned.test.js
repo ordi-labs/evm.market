@@ -21,8 +21,8 @@ test("rejects unsupported contracts and malformed wallet addresses", async () =>
   assert.equal(malformed.status, 400);
 });
 
-test("accepts all three configured collection contracts", async () => {
-  for (const contract of [CONTRACT, "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "0x7325654c657520e30c56a04225a3d9acdf895e55"]) {
+test("accepts all four configured collection contracts", async () => {
+  for (const contract of [CONTRACT, "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "0x7325654c657520e30c56a04225a3d9acdf895e55", "0x18d91b5597f1a7227d2960945c9a1417f0ff721d"]) {
     const response = await onRequestGet({request: new Request("https://site.test/api/owned?contract=" + contract + "&owner=" + WALLET), env: {}});
     assert.equal(response.status, 503);
     assert.match((await response.json()).error, /Alchemy NFT API/);

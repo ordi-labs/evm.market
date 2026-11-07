@@ -532,3 +532,17 @@ test("rejects a listing that routes all payment away from the maker", async () =
     assert.equal(called, false);
   } finally { globalThis.fetch = originalFetch; }
 });
+
+
+test("CryptoPunks [Base] collection listings use the configured OpenSea slug", async t => {
+  const originalFetch = globalThis.fetch;
+  let requested;
+  globalThis.fetch = async url => {
+    requested = new URL(String(url));
+    return new Response(JSON.stringify({listings: [], next: null}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequest({request: new Request("https://market.test/api/trade?action=collection-listings&contract=0x18d91b5597f1a7227d2960945c9a1417f0ff721d&limit=10"), env: {OPENSEA_API_KEY: "private-test-key"}});
+  assert.equal(response.status, 200);
+  assert.match(requested.pathname, /\/listings\/collection\/cryptopunks-base\/best$/);
+});

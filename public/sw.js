@@ -1,4 +1,4 @@
-const CACHE_NAME = "evm-market-shell-v7-no-api-cache-20261107";
+const CACHE_NAME = "evm-market-shell-v8-cryptopunks-base-20261107";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest?v=logo-20261106", "/icons/icon.svg?v=logo-20261106", "/icons/icon-180.png?v=logo-20261106", "/icons/icon-192.png?v=logo-20261106", "/icons/icon-512.png?v=logo-20261106"];
 
 self.addEventListener("install", (event) => {
