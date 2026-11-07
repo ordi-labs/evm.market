@@ -269,19 +269,20 @@ function publishTraitIndex(contract,nfts,scan){
  updateTraitTypeOptions();
  if(complete&&!ownedByMe){items=nfts;nextCursor=null;cursors={1:null};render()}
 }
-async function ensureFullTraitIndex(contract){
+async function ensureFullTraitIndex(contract,{restartIncomplete=false}={}){
  contract=String(contract).toLowerCase();if(traitIndexLoads.has(contract))return traitIndexLoads.get(contract);
  const task=(async()=>{
   let cached;
   try{cached=await readTraitIndex(contract)}catch(error){if(COLLECTIONS[selected].contract===contract)setNotice("<strong>Full trait scan unavailable.</strong> This browser cannot store the 10,000-NFT index locally. Enable site storage and refresh.",true);return}
   if(cached.nfts.length||cached.scan)publishTraitIndex(contract,cached.nfts,cached.scan);
   if(cached.scan?.exhausted){
-   if(COLLECTIONS[selected].contract===contract)setNotice(cached.scan.coverageComplete&&cached.nfts.length===COLLECTION_SUPPLY?"<strong>Full collection indexed.</strong> All 10,000 NFTs are compared; trait counts and percentages are collection-wide.":"<strong>Collection index incomplete.</strong> Provider returned "+cached.nfts.length.toLocaleString()+" of 10,000 NFTs. Exact full-collection filters are disabled until all items are available.",!cached.scan.coverageComplete);
-   return;
+   const complete=cached.scan.coverageComplete&&cached.nfts.length===COLLECTION_SUPPLY;
+   if(COLLECTIONS[selected].contract===contract)setNotice(complete?"<strong>Full collection indexed.</strong> All 10,000 NFTs are compared; trait counts and percentages are collection-wide.":"<strong>Collection index incomplete.</strong> Provider returned "+cached.nfts.length.toLocaleString()+" of 10,000 NFTs. Exact filters stay disabled; press Refresh to retry the full scan.",!complete);
+   if(complete||!restartIncomplete)return;
   }
   if(COLLECTIONS[selected].contract===contract){$("traitTypeFilter").disabled=true;$("traitValueFilter").disabled=true;updateTraitTypeOptions();setNotice("<strong>Scanning complete collection.</strong> 0 / 10,000 NFTs compared. Filters will activate when the full index is ready.<progress class=\"trait-progress\" max=\"10000\" value=\"0\"></progress>")}
   try{
-   const result=await scanTraitIndex({contract,onProgress:progress=>{
+   const result=await scanTraitIndex({contract,restartIncomplete,onProgress:progress=>{
     if(COLLECTIONS[selected].contract===contract)setNotice("<strong>Scanning "+safe(COLLECTIONS[selected].name)+" traits.</strong> "+progress.scanned.toLocaleString()+" / 10,000 NFTs compared · filters activate after the full scan.<progress class=\"trait-progress\" max=\"10000\" value=\""+Math.min(progress.scanned,10000)+"\"></progress>");
    }});
    publishTraitIndex(contract,result.nfts,result.scan);
@@ -356,7 +357,7 @@ async function forceRefreshAllPages(){
   button.textContent="↻ Refreshing 20…";
   try{
     await load(false,true);
-    await ensureFullTraitIndex(contract);
+    await ensureFullTraitIndex(contract,{restartIncomplete:true});
   }finally{
     button.disabled=false;
     button.textContent=original;
@@ -391,6 +392,46 @@ async function chooseWalletProvider(){
 const REOWN_PROJECT_ID="f981fcdc036a0a273c655b90030221e4";
 const APP_URL="https://evm-market-premium.pages.dev";
 let walletConnectProvider=null;
+function waitForReownProvider(appKit,timeoutMs=180000){
+ const current=appKit.getWalletProvider?.();
+ if(current)return Promise.resolve(current);
+ return new Promise((resolve,reject)=>{
+  let settled=false,timer=null;
+  const subscriptions=[];
+  const cleanup=()=>{
+   if(timer)clearTimeout(timer);
+   document.removeEventListener("visibilitychange",onVisibilityChange);
+   for(const unsubscribe of subscriptions)try{unsubscribe()}catch{}
+  };
+  const finish=(error,provider)=>{
+   if(settled)return;
+   settled=true;cleanup();
+   if(error)reject(error);else resolve(provider);
+  };
+  const check=()=>{
+   if(settled)return;
+   const provider=appKit.getWalletProvider?.();
+   if(provider)finish(null,provider);
+  };
+  const checkSoon=()=>queueMicrotask(check);
+  const armTimeout=()=>{
+   if(timer)clearTimeout(timer);
+   timer=null;
+   if(document.visibilityState==="hidden")return;
+   timer=setTimeout(()=>finish(new Error("Wallet connection timed out. Return to this tab after approving the request in your wallet, then retry.")),timeoutMs);
+  };
+  const onVisibilityChange=()=>armTimeout();
+  const addSubscription=(unsubscribe)=>{if(typeof unsubscribe==="function")subscriptions.push(unsubscribe)};
+  try{
+   if(typeof appKit.subscribeProviders==="function")addSubscription(appKit.subscribeProviders(checkSoon));
+   if(typeof appKit.subscribeAccount==="function")addSubscription(appKit.subscribeAccount(account=>{if(account?.isConnected||account?.status==="connected")checkSoon()},"eip155"));
+   if(typeof appKit.subscribeState==="function")addSubscription(appKit.subscribeState(checkSoon));
+  }catch(error){finish(error);return}
+  document.addEventListener("visibilitychange",onVisibilityChange);
+  armTimeout();
+  check();
+ });
+}
 async function connectWalletConnect(){
  // AppKit owns the WalletConnect session and exposes an EIP-1193 provider for all secure actions.
  closeWalletChooser();
@@ -401,12 +442,8 @@ async function connectWalletConnect(){
   const appKit=window.__reownAppKit;
   if(!appKit)throw new Error("Reown AppKit is still loading. Please try again.");
   await appKit.open();
-  for(let attempt=0;attempt<120;attempt++){
-   walletConnectProvider=appKit.getWalletProvider?.();
-   if(walletConnectProvider)break;
-   await new Promise(resolve=>setTimeout(resolve,250));
-  }
-  if(!walletConnectProvider)throw new Error("No wallet provider was returned by Reown AppKit.");
+  setNotice("<strong>WalletConnect is open.</strong> Approve the connection in your wallet, then return to this tab.");
+  walletConnectProvider=await waitForReownProvider(appKit);
   $("signatureGate").hidden=true;
   walletChooserStatus("");
   await connect(walletConnectProvider,"Reown AppKit · WalletConnect");

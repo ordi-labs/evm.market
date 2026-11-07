@@ -23,6 +23,19 @@ test("collection trait filters are enabled only after all 10,000 NFTs are indexe
   assert.match(html, /list\.slice\(\(page-1\)\*PAGE_SIZE,page\*PAGE_SIZE\)/);
   assert.match(html, /value\.count\/COLLECTION_SUPPLY\*100/);
 });
+test("refresh explicitly restarts an exhausted but incomplete collection scan", () => {
+  assert.match(html, /if\(complete\|\|!restartIncomplete\)return/);
+  assert.match(html, /scanTraitIndex\(\{contract,restartIncomplete,/);
+  assert.match(html, /ensureFullTraitIndex\(contract,\{restartIncomplete:true\}\)/);
+});
+test("Reown mobile connect waits for AppKit provider/account events and survives wallet app switching", () => {
+  assert.match(html, /function waitForReownProvider\(appKit,timeoutMs=180000\)/);
+  assert.match(html, /appKit\.subscribeProviders/);
+  assert.match(html, /appKit\.subscribeAccount/);
+  assert.match(html, /document\.addEventListener\("visibilitychange",onVisibilityChange\)/);
+  assert.match(html, /walletConnectProvider=await waitForReownProvider\(appKit\)/);
+  assert.doesNotMatch(html, /for\(let attempt=0;attempt<120;attempt\+\+\)/);
+});
 test("trait catalog retains every array value and its count from collection facets", () => {
   const result = normalizeTraitCatalog({traits:[
     {trait_type:"Skin Tone",values:[{value:"Tone 1",count:10},{value:"Tone 2",count:9},{value:"Tone 3",count:8},{value:"Tone 4",count:7},{value:"Tone 5",count:6},{value:"Tone 6",count:5},{value:"Tone 7",count:4}]},

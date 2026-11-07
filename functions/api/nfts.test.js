@@ -95,3 +95,23 @@ test("trait scan fails closed when OpenSea is not configured", async () => {
   assert.equal(response.status,503);
   assert.match((await response.json()).error,/OpenSea API is required/);
 });
+
+test("trait scan rejects opaque or empty OpenSea cursors instead of restarting page one",async t=>{
+  const originalFetch=globalThis.fetch;
+  let calls=0;
+  globalThis.fetch=async()=>{
+    calls++;
+    return new Response(JSON.stringify({nfts:[],next:null}),{status:200});
+  };
+  t.after(()=>{globalThis.fetch=originalFetch});
+
+  for(const cursor of ["opaque-cursor","os_"]){
+    const response=await onRequestGet({
+      request:new Request("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&scanTraits=1&next="+cursor),
+      env:{OPENSEA_API_KEY:"private-test-key"}
+    });
+    assert.equal(response.status,400);
+    assert.match((await response.json()).error,/cursor/i);
+  }
+  assert.equal(calls,0);
+});

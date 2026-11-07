@@ -55,15 +55,17 @@ async function savePage(contract,nfts,scan){
 }
 function delay(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
 
-export async function scanTraitIndex({contract,onProgress=()=>{},signal}={}){
+export async function scanTraitIndex({contract,onProgress=()=>{},signal,restartIncomplete=false}={}){
   const normalized=String(contract||"").toLowerCase();
   if(!/^0x[0-9a-f]{40}$/.test(normalized))throw new Error("Adresse de collection invalide pour le scan des traits.");
   let {nfts,scan}=await readTraitIndex(normalized);
   const byId=new Map(nfts.map(n=>[String(n.identifier),n]));
-  if(scan?.exhausted)return {nfts:[...byId.values()],scan,complete:scan.coverageComplete};
-  let cursor=scan?.next||null,attempts=0;
+  if(scan?.exhausted&&(scan.coverageComplete||!restartIncomplete))return {nfts:[...byId.values()],scan,complete:scan.coverageComplete};
+  let cursor=scan?.exhausted?null:scan?.next||null,attempts=0;
+  const seenCursors=new Set();
   while(true){
     if(signal?.aborted)throw new DOMException("Scan annulé.","AbortError");
+    if(cursor)seenCursors.add(cursor);
     const query=new URLSearchParams({contract:normalized,scanTraits:"1",limit:String(TRAIT_SCAN_PAGE_SIZE)});
     if(cursor)query.set("next",cursor);
     let response;
@@ -76,15 +78,29 @@ export async function scanTraitIndex({contract,onProgress=()=>{},signal}={}){
       continue;
     }
     const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||"Le fournisseur n’a pas pu poursuivre le scan des traits.");
+    if(!response.ok){
+      const message=String(data.error||"Le fournisseur n’a pas pu poursuivre le scan des traits.");
+      if(response.status===400&&cursor&&/cursor/i.test(message)){
+        cursor=null;
+        seenCursors.clear();
+        scan={...(scan||{}),contract:normalized,next:null,scanned:byId.size,expected:COLLECTION_SUPPLY,exhausted:false,coverageComplete:false,updatedAt:Date.now()};
+        await savePage(normalized,[],scan);
+        onProgress({scanned:byId.size,expected:COLLECTION_SUPPLY,exhausted:false,complete:false});
+        continue;
+      }
+      throw new Error(message);
+    }
     attempts=0;
     const page=[];
     for(const value of Array.isArray(data.nfts)?data.nfts:[]){const nft=slimNft(value,normalized);if(nft){byId.set(nft.identifier,nft);page.push(nft)}}
-    cursor=typeof data.next==="string"&&data.next?data.next:null;
-    const exhausted=!cursor;
+    const nextCursor=typeof data.next==="string"&&data.next?data.next:null;
+    const repeatedCursor=Boolean(nextCursor&&seenCursors.has(nextCursor));
+    const exhausted=!nextCursor&&!repeatedCursor;
+    cursor=repeatedCursor?null:nextCursor;
     scan={contract:normalized,next:cursor,scanned:byId.size,expected:COLLECTION_SUPPLY,exhausted,coverageComplete:exhausted&&byId.size===COLLECTION_SUPPLY,updatedAt:Date.now(),source:String(data.source||"opensea-trait-index")};
     await savePage(normalized,page,scan);
     onProgress({scanned:byId.size,expected:COLLECTION_SUPPLY,exhausted,complete:scan.coverageComplete});
+    if(repeatedCursor)throw new Error("Le fournisseur a répété un curseur du scan. Le prochain essai repartira du début.");
     if(exhausted)return {nfts:[...byId.values()],scan,complete:scan.coverageComplete};
     await delay(250);
   }

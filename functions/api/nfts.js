@@ -232,9 +232,13 @@ export async function onRequestGet({request, env}) {
   const scanTraits = url.searchParams.get("scanTraits") === "1";
   const requestedLimit = Math.max(1, Number.parseInt(url.searchParams.get("limit") || "20", 10) || 20);
   const limit = Math.min(scanTraits ? 50 : 20, requestedLimit);
+  const nextProvided = url.searchParams.has("next");
   const next = url.searchParams.get("next");
   if (next && (next.length > 2048 || !/^[A-Za-z0-9_.~+/=-]+$/.test(next))) {
     return json({error:"Invalid pagination cursor."}, 400, forceRefresh);
+  }
+  if (scanTraits && nextProvided && (!next || !next.startsWith("os_"))) {
+    return json({error:"Invalid collection scan cursor."}, 400, true);
   }
 
   const openSeaKey = env.OPENSEA_API_KEY || env.OPENSEA_API;
@@ -244,6 +248,9 @@ export async function onRequestGet({request, env}) {
     if (isOpenSeaCursor) openSeaCursor = decodeOpenSeaCursor(next);
   } catch {
     return json({error:"Invalid pagination cursor."}, 400, forceRefresh);
+  }
+  if (scanTraits && nextProvided && !openSeaCursor) {
+    return json({error:"Invalid collection scan cursor."}, 400, true);
   }
 
   if (scanTraits) {

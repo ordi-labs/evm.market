@@ -1,4 +1,4 @@
-const CACHE_NAME = "evm-market-shell-v6-wallet-launch-20261107";
+const CACHE_NAME = "evm-market-shell-v7-no-api-cache-20261107";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest?v=logo-20261106", "/icons/icon.svg?v=logo-20261106", "/icons/icon-180.png?v=logo-20261106", "/icons/icon-192.png?v=logo-20261106", "/icons/icon-512.png?v=logo-20261106"];
 
 self.addEventListener("install", (event) => {
@@ -21,6 +21,13 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  // API results and explicit no-store requests must always reach the network.
+  // In particular, cached pagination cursors can otherwise replay stale scan pages.
+  if (url.pathname.startsWith("/api/") || request.cache === "no-store" || /(?:^|,)\s*no-store\s*(?:,|$)/i.test(request.headers.get("cache-control") || "")) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   if (request.mode === "navigate") {
     event.respondWith(fetch(request).then((response) => {
