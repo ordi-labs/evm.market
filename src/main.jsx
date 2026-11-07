@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { createAppKit } from '@reown/appkit/react'
 import { EthersAdapter } from '@reown/appkit-adapter-ethers'
 import { base } from '@reown/appkit/networks'
+import { verifyMessage } from 'ethers'
 
 const projectId = 'f981fcdc036a0a273c655b90030221e4'
 const appUrl = 'https://evm-market-premium.pages.dev'
@@ -28,6 +29,7 @@ const appKit = createAppKit({
 })
 
 window.__reownAppKit = appKit
+window.__verifyMessage = verifyMessage
 
 function AppKitBridge() {
   return null
