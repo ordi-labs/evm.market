@@ -149,7 +149,53 @@ async function getListingResponse(url){const task=listingQueue.then(async()=>{fo
 function mergeListedItemsForFilter(contract,state){if(COLLECTIONS[selected]?.contract!==contract||!state?.complete||$("listingFilter").value!=="listed")return;const merged=new Map(items.map(n=>[String(idOf(n)),n]));for(const [id] of state.byId){if(!merged.has(String(id)))merged.set(String(id),{token_id:String(id),name:"Token #"+String(id),metadata:{}})}items=[...merged.values()]}
 function syncCollectionListingState(contract,state){if(COLLECTIONS[selected]?.contract!==contract)return;for(const nft of items){const id=idOf(nft),key=listingKey(contract,id),found=state.byId.get(id);if(found)liveListings.set(key,found);else if(state.complete)liveListings.set(key,false);else if(state.error)liveListings.set(key,{error:state.error});else liveListings.set(key,"loading")}mergeListedItemsForFilter(contract,state);render()}
 function loadLiveListing(n,contract){const id=idOf(n),key=listingKey(contract,id),state=collectionListings.get(contract);if(!id||liveListings.has(key))return;if(state?.byId.has(id)){liveListings.set(key,state.byId.get(id));return}if(state?.complete){liveListings.set(key,false);return}if(state?.error){liveListings.set(key,{error:state.error});return}liveListings.set(key,"loading")}
-async function loadCollectionListings(contract,refresh=false){if(refresh){collectionListings.delete(contract);collectionListingLoads.delete(contract)}const current=collectionListings.get(contract);if(current?.complete){syncCollectionListingState(contract,current);return}if(collectionListingLoads.has(contract))return collectionListingLoads.get(contract);const state=current||{byId:new Map(),complete:false,next:null,error:null};collectionListings.set(contract,state);const task=(async()=>{let next=null;for(let pageIndex=0;pageIndex<50;pageIndex++){const url="/api/trade?action=collection-listings&contract="+encodeURIComponent(contract)+"&limit=200"+(next?"&next="+encodeURIComponent(next):"");const response=await getListingResponse(url);const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"OpenSea collection listings unavailable");const listings=Array.isArray(data.listings)?data.listings:Array.isArray(data.orders)?data.orders:[];for(const order of listings){if(String(order?.status||"ACTIVE").toUpperCase()!=="ACTIVE")continue;const asset=order?.asset||order?.nft||order?.item,offered=order?.protocol_data?.parameters?.offer||order?.protocolData?.parameters?.offer||[],nftOffer=offered.find(x=>Number(x?.itemType)===2);const orderContract=String(asset?.contract||asset?.contract_address||nftOffer?.token||"").toLowerCase();if(orderContract&&orderContract!==contract.toLowerCase())continue;const id=String(asset?.identifier??asset?.token_id??asset?.tokenId??nftOffer?.identifierOrCriteria??nftOffer?.identifier_or_criteria??"");if(!/^(0|[1-9][0-9]{0,77})$/.test(id))continue;const price=listingPrice(order);const previous=state.byId.get(id);if(!previous||(price&&(!previous.price||price.value<previous.price.value)))state.byId.set(id,{order,price})}next=data.next||null;state.next=next;if(!next){state.complete=true;state.error=null;syncCollectionListingState(contract,state);return}syncCollectionListingState(contract,state)}throw new Error("OpenSea listing pagination exceeded 50 pages; unconfirmed items were not labelled unlisted.")})().catch(error=>{state.error=String(error?.message||error);syncCollectionListingState(contract,state)}).finally(()=>collectionListingLoads.delete(contract));collectionListingLoads.set(contract,task);return task}
+async function loadCollectionListings(contract,refresh=false){
+ if(refresh){collectionListings.delete(contract);collectionListingLoads.delete(contract)}
+ const current=collectionListings.get(contract);
+ if(current?.complete){syncCollectionListingState(contract,current);return}
+ if(collectionListingLoads.has(contract))return collectionListingLoads.get(contract);
+ const state=current||{byId:new Map(),complete:false,next:null,error:null};
+ collectionListings.set(contract,state);
+ const task=(async()=>{
+  let next=null;
+  const seenCursors=new Set();
+  let pageIndex=0;
+  while(true){
+   if(next){
+    if(seenCursors.has(next))throw new Error("OpenSea returned a repeated listing cursor; scan stopped safely.");
+    seenCursors.add(next);
+   }
+   pageIndex++;
+   const url="/api/trade?action=collection-listings&contract="+encodeURIComponent(contract)+"&limit=200"+(next?"&next="+encodeURIComponent(next):"");
+   const response=await getListingResponse(url);
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok)throw new Error(data.error||"OpenSea collection listings unavailable");
+   const listings=Array.isArray(data.listings)?data.listings:Array.isArray(data.orders)?data.orders:[];
+   for(const order of listings){
+    if(String(order?.status||"ACTIVE").toUpperCase()!=="ACTIVE")continue;
+    const asset=order?.asset||order?.nft||order?.item;
+    const offered=order?.protocol_data?.parameters?.offer||order?.protocolData?.parameters?.offer||[];
+    const nftOffer=offered.find(x=>Number(x?.itemType)===2);
+    const orderContract=String(asset?.contract||asset?.contract_address||order?.asset_contract?.address||nftOffer?.token||"").toLowerCase();
+    if(orderContract&&orderContract!==contract.toLowerCase())continue;
+    const id=String(asset?.identifier??asset?.token_id??asset?.tokenId??order?.asset_contract?.token_id??order?.token_id??nftOffer?.identifierOrCriteria??nftOffer?.identifier_or_criteria??"");
+    if(!/^(0|[1-9][0-9]{0,77})$/.test(id))continue;
+    const price=listingPrice(order);
+    const previous=state.byId.get(id);
+    // Keep the cheapest active order for each NFT, including prices below 50 USD
+    // and orders whose price representation is unavailable.
+    if(!previous||(price&&(!previous.price||price.value<previous.price.value)))state.byId.set(id,{order,price});
+   }
+   next=data.next||null;
+   state.next=next;
+   state.pages=pageIndex;
+   state.scannedListings=(state.scannedListings||0)+listings.length;
+   syncCollectionListingState(contract,state);
+   if(!next){state.complete=true;state.error=null;syncCollectionListingState(contract,state);return}
+  }
+ })().catch(error=>{state.error=String(error?.message||error);syncCollectionListingState(contract,state)}).finally(()=>collectionListingLoads.delete(contract));
+ collectionListingLoads.set(contract,task);return task
+}
 function normalizeTraitCatalog(data){
  const grouped=new Map();
  const add=(type,value,count=0,sum=false)=>{
