@@ -58,3 +58,21 @@ test("owned view is exposed as a wallet-scoped mode for the three configured col
   assert.match(html, /requestedOwned\?"\/api\/owned"/);
   assert.match(html, /ownedByMe/);
 });
+test("trading actions are rendered from verified ownership instead of showing Buy first", () => {
+  const fillStart = html.indexOf("async function fillTradeActions");
+  const fillEnd = html.indexOf("async function loadSeaportOrderbookStatus", fillStart);
+  const fill = html.slice(fillStart, fillEnd);
+  assert.doesNotMatch(fill, /container\.append\(tradeButton\("Buy/);
+  assert.match(fill, /if\(owner===true\).*List NFT/);
+  assert.match(fill, /else if\(owner===false\).*tradeButton\("Buy/);
+});
+
+test("confirmed purchases invalidate ownership and listing state before rerendering", () => {
+  const purchaseStart = html.indexOf('if(action==="Buy")');
+  const purchaseEnd = html.indexOf('throw new Error("Unsupported trading action.")', purchaseStart);
+  const purchase = html.slice(purchaseStart, purchaseEnd);
+  assert.match(purchase, /ownershipCache\.clear\(\);/);
+  assert.match(purchase, /liveListings\.delete\(listingKey\(contract,id\)\);/);
+  assert.match(purchase, /render\(\);return/);
+});
+
