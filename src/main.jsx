@@ -19,6 +19,7 @@ const appKit = createAppKit({
   networks: [base],
   projectId,
   metadata,
+  enableInjected: false,
   features: {
     analytics: true,
     emailCapture: false,
