@@ -96,7 +96,7 @@ test("uses same-chain listing fulfillment with an explicit Base chain", async ()
     assert.equal(payload.listings[0].chain, "base");
     assert.equal(payload.listings[0].protocol_address, SEAPORT);
     assert.equal(payload.payment.chain, "base");
-    assert.equal(payload.payment.address, "0x0000000000000000000000000000000000000000");
+    assert.equal(payload.payment.token_address, "0x0000000000000000000000000000000000000000");
     assert.equal(payload.fulfiller.address, "0x1111111111111111111111111111111111111111");
     return new Response(JSON.stringify({ transactions: [{ chain: "base", to: "0x1111111111111111111111111111111111111111", data: "0x12345678", value: "0", value_hex: "0x0" }] }), {
       status: 200, headers: { "content-type": "application/json" }

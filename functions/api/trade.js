@@ -337,7 +337,7 @@ export async function onRequest({ request, env }) {
             protocol_address: listing.protocol_address
           }],
           fulfiller: fulfillmentRequest.fulfiller,
-          payment: { chain: CHAIN, address: NATIVE_CURRENCY }
+          payment: { chain: CHAIN, token_address: NATIVE_CURRENCY }
         })
       });
     }
