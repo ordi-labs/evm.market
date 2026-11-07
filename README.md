@@ -15,7 +15,7 @@ Premium Base NFT collection explorer for Base Punks and NodeMonkes. This reposit
 - OPENSEA_API_KEY must remain a Cloudflare Pages secret and may be used for NFT metadata and the server-side trade API. Never commit API keys.
 
 ## Functionality
-Responsive collection browsing, contract allowlisting, search, cursor pagination, WalletConnect mobile-wallet connection only (no injected/browser-wallet choices), and Base network switching.
+Responsive collection browsing, contract allowlisting, search, cursor pagination, Reown AppKit connections via WalletConnect on mobile and injected browser-extension wallets on desktop, and Base network switching.
 
 ## Seaport integration status
 A server-side foundation is being prepared in `functions/api/trade.js`:

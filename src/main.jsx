@@ -19,7 +19,9 @@ const appKit = createAppKit({
   networks: [base],
   projectId,
   metadata,
-  enableInjected: false,
+  // Show browser extension wallets (MetaMask, Rabby, Coinbase Wallet, etc.)
+  // alongside WalletConnect in the AppKit modal.
+  enableInjected: true,
   features: {
     analytics: true,
     emailCapture: false,
