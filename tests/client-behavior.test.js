@@ -72,7 +72,8 @@ test("confirmed purchases invalidate ownership and listing state before rerender
   const purchaseEnd = html.indexOf('throw new Error("Unsupported trading action.")', purchaseStart);
   const purchase = html.slice(purchaseStart, purchaseEnd);
   assert.match(purchase, /ownershipCache\.clear\(\);/);
-  assert.match(purchase, /liveListings\.delete\(listingKey\(contract,id\)\);/);
+  assert.match(purchase, /liveListings\.set\(purchasedListingKey,false\);/);
+  assert.match(purchase, /listingState\?\.byId\)listingState\.byId\.delete\(String\(id\)\)/);
   assert.match(purchase, /render\(\);return/);
 });
 test("listed and unlisted filters both prepare the full collection and listing indexes", () => {
