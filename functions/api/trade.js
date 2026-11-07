@@ -195,7 +195,6 @@ function validateFulfillmentRequest(body, asset, side, env) {
     // OpenSea fulfillment_data expects "hash" on the order, not "order_hash".
     // Include the NFT consideration explicitly so the API can resolve its contract
     // and token ID rather than returning "Missing required field 'contract'".
-    chain: CHAIN,
     fulfiller: { address },
     [side]: { hash, chain: CHAIN, protocol_address: protocolAddress },
     consideration: {
@@ -203,7 +202,7 @@ function validateFulfillmentRequest(body, asset, side, env) {
       token_id: asset.tokenId
     },
     include_optional_creator_fees: body.include_optional_creator_fees === true,
-    ...(body.recipient && /^0x[0-9a-f]{40}$/i.test(String(body.recipient)) ? { recipient: String(body.recipient) } : {})
+    ...(side === "listing" && body.recipient && /^0x[0-9a-f]{40}$/i.test(String(body.recipient)) ? { recipient: String(body.recipient) } : {})
   };
 }
 

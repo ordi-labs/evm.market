@@ -119,6 +119,41 @@ test("uses same-chain listing fulfillment with an explicit Base chain", async ()
   }
 });
 
+test("uses the official offer fulfillment schema without unsupported root fields", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith("/api/v2/offers/fulfillment_data"));
+    const payload = JSON.parse(init.body);
+    assert.equal(payload.offer.hash, HASH);
+    assert.equal(payload.offer.chain, "base");
+    assert.equal(payload.offer.protocol_address, SEAPORT);
+    assert.equal(payload.consideration.asset_contract_address, CONTRACT);
+    assert.equal(payload.consideration.token_id, "1");
+    assert.equal(Object.hasOwn(payload, "chain"), false);
+    assert.equal(Object.hasOwn(payload.consideration, "contract"), false);
+    assert.equal(Object.hasOwn(payload, "recipient"), false);
+    return new Response(JSON.stringify({ fulfillment_data: { transaction: { chain: "base", data: "0x12345678" } } }), { status: 200 });
+  };
+  try {
+    const body = fulfillmentBody({
+      listing: undefined,
+      offer: {
+        order_hash: HASH,
+        chain: "base",
+        protocol_address: SEAPORT,
+        asset: { contract: CONTRACT, identifier: "1" }
+      }
+    });
+    const response = await onRequest({
+      request: request("fulfill-offer", body),
+      env: { BASE_SEAPORT_ADDRESS: SEAPORT, OPENSEA_API_KEY: "test-key" }
+    });
+    assert.equal(response.status, 200);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("rejects a mismatched Seaport protocol address", async () => {
   const body = fulfillmentBody({ listing: { ...fulfillmentBody().listing, protocol_address: "0x3333333333333333333333333333333333333333" } });
   const response = await onRequest({
