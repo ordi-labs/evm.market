@@ -409,7 +409,7 @@ function connect(provider=null,label="wallet"){
 }
 async function connectWalletSession(provider,label){
  try{
-  if(label!=="WalletConnect"||!walletConnectProvider||provider!==walletConnectProvider)throw new Error("Only WalletConnect is supported for wallet connections and transactions.");
+  if(!String(label).includes("WalletConnect")||!walletConnectProvider||provider!==walletConnectProvider)throw new Error("Only WalletConnect is supported for wallet connections and transactions.");
   const accounts=await provider.request({method:"eth_requestAccounts"});
   activeProvider=provider;account=accounts[0]||null;
   if(!account){walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;setNotice("<strong>Wallet not connected.</strong> No account was returned.",true);render();return}
