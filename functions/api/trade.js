@@ -199,7 +199,6 @@ function validateFulfillmentRequest(body, asset, side, env) {
     fulfiller: { address },
     [side]: { hash, chain: CHAIN, protocol_address: protocolAddress },
     consideration: {
-      contract: asset.contract,
       asset_contract_address: asset.contract,
       token_id: asset.tokenId
     },
@@ -335,12 +334,7 @@ export async function onRequest({ request, env }) {
           listing: {
             hash: listing.hash,
             chain: CHAIN,
-            protocol_address: listing.protocol_address,
-            // Keep the NFT identity explicit in the upstream payload. OpenSea's
-            // current fulfillment validator can reject hash-only requests with
-            // "Missing required field 'contract'" even after local validation.
-            contract: asset.contract,
-            token_id: asset.tokenId
+            protocol_address: listing.protocol_address
           },
           fulfiller: fulfillmentRequest.fulfiller,
           consideration: fulfillmentRequest.consideration,
