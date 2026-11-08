@@ -2,8 +2,11 @@ const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, CRYPTOPUNKS_BASE]);
+const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
 const BASE_CHAIN_ID = "0x2105";
+const POLYGON_CHAIN_ID = "0x89";
+const networkFor = contract => contract === NODEMONKES_POLYGON ? {slug:"polygon",chainId:POLYGON_CHAIN_ID,rpcHost:"polygon-mainnet",label:"Polygon"} : {slug:"base",chainId:BASE_CHAIN_ID,rpcHost:"base-mainnet",label:"Base"};
 const OWNER_OF_SELECTOR = "0x6352211e";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -40,8 +43,8 @@ function getAlchemyKey(env) {
   return "";
 }
 
-function getRpcUrl(env, key) {
-  const configured = String(env.ETHEREUM_API || "").trim();
+function getRpcUrl(env, key, network) {
+  const configured = String(network.slug === "polygon" ? (env.POLYGON_RPC || env.POLYGON_RPC_URL || "") : (env.ETHEREUM_API || "")).trim();
   if (/^https?:\/\//i.test(configured)) {
     try {
       const url = new URL(configured);
@@ -51,7 +54,7 @@ function getRpcUrl(env, key) {
     }
     return "";
   }
-  return key ? "https://base-mainnet.g.alchemy.com/v2/" + encodeURIComponent(key) : "";
+  return key ? "https://" + network.rpcHost + ".g.alchemy.com/v2/" + encodeURIComponent(key) : "";
 }
 
 function decimalTokenId(value) {
@@ -96,19 +99,21 @@ function normalizeOwnedNft(nft, contract) {
       attributes: Array.isArray(attributes) ? attributes : []
     },
     verifiedOwner: true,
-    opensea_url: "https://opensea.io/assets/base/" + contract + "/" + encodeURIComponent(tokenId)
+    opensea_url: contract === NODEMONKES_POLYGON
+      ? "https://og.rarible.com/token/polygon/" + contract + ":" + encodeURIComponent(tokenId)
+      : "https://opensea.io/assets/base/" + contract + "/" + encodeURIComponent(tokenId)
   };
 }
 
-async function rpcRequest(rpcUrl, method, params) {
+async function rpcRequest(rpcUrl, method, params, networkLabel = "Base") {
   const response = await fetch(rpcUrl, {
     method: "POST",
     headers: {"content-type": "application/json", "accept": "application/json"},
     body: JSON.stringify({jsonrpc: "2.0", id: 1, method, params})
   });
-  if (!response.ok) throw new Error("Base RPC is unavailable.");
+  if (!response.ok) throw new Error(networkLabel + " RPC is unavailable.");
   const data = await response.json().catch(() => null);
-  if (!data || data.jsonrpc !== "2.0") throw new Error("Base RPC returned an invalid response.");
+  if (!data || data.jsonrpc !== "2.0") throw new Error(networkLabel + " RPC returned an invalid response.");
   return data;
 }
 
@@ -125,13 +130,13 @@ async function mapLimit(values, concurrency, callback) {
   return output;
 }
 
-async function ownsOnBase(rpcUrl, contract, tokenId, wallet) {
+async function ownsOnChain(rpcUrl, contract, tokenId, wallet, network) {
   const encodedId = BigInt(tokenId).toString(16).padStart(64, "0");
-  const data = await rpcRequest(rpcUrl, "eth_call", [{to: contract, data: OWNER_OF_SELECTOR + encodedId}, "latest"]);
+  const data = await rpcRequest(rpcUrl, "eth_call", [{to: contract, data: OWNER_OF_SELECTOR + encodedId}, "latest"], network.label);
   if (data.error) {
     const message = String(data.error.message || "");
     if (data.error.code === -32005 || /rate.?limit|timeout|temporarily unavailable|overloaded/i.test(message)) {
-      throw new Error("Base RPC ownership verification is temporarily unavailable.");
+      throw new Error(network.label + " RPC ownership verification is temporarily unavailable.");
     }
     // ERC-721 ownerOf reverts for stale indexer entries, nonexistent, or burned tokens.
     return false;
@@ -153,18 +158,19 @@ export async function onRequestGet({request, env}) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) return json({error: "Owned NFT page size must be between 1 and 100."}, 400);
   if (next.length > 2048 || (next && !/^[A-Za-z0-9_.~+/=-]+$/.test(next))) return json({error: "Invalid ownership pagination cursor."}, 400);
 
+  const network = networkFor(contract);
   const alchemyKey = getAlchemyKey(env);
   if (!alchemyKey) return json({error: "Alchemy NFT API is not configured on the server."}, 503);
-  const rpcUrl = getRpcUrl(env, alchemyKey);
-  if (!rpcUrl) return json({error: "A Base mainnet RPC endpoint is not configured on the server."}, 503);
+  const rpcUrl = getRpcUrl(env, alchemyKey, network);
+  if (!rpcUrl) return json({error: "A " + network.label + " mainnet RPC endpoint is not configured on the server."}, 503);
 
   try {
-    const chain = await rpcRequest(rpcUrl, "eth_chainId", []);
-    if (chain.error || String(chain.result || "").toLowerCase() !== BASE_CHAIN_ID) {
-      return json({error: "Ownership verification requires a Base mainnet RPC endpoint (chain ID 8453)."}, 503);
+    const chain = await rpcRequest(rpcUrl, "eth_chainId", [], network.label);
+    if (chain.error || String(chain.result || "").toLowerCase() !== network.chainId) {
+      return json({error: "Ownership verification requires a " + network.label + " mainnet RPC endpoint (chain ID " + BigInt(network.chainId).toString() + ")."}, 503);
     }
 
-    const endpoint = new URL("https://base-mainnet.g.alchemy.com/nft/v3/" + encodeURIComponent(alchemyKey) + "/getNFTsForOwner");
+    const endpoint = new URL("https://" + network.rpcHost + ".g.alchemy.com/nft/v3/" + encodeURIComponent(alchemyKey) + "/getNFTsForOwner");
     endpoint.searchParams.set("owner", wallet);
     endpoint.searchParams.append("contractAddresses[]", contract);
     endpoint.searchParams.set("withMetadata", "true");
@@ -178,18 +184,18 @@ export async function onRequestGet({request, env}) {
 
     const candidates = (Array.isArray(data.ownedNfts) ? data.ownedNfts : Array.isArray(data.nfts) ? data.nfts : [])
       .map(nft => normalizeOwnedNft(nft, contract)).filter(Boolean);
-    const checks = await mapLimit(candidates, 8, nft => ownsOnBase(rpcUrl, contract, nft.identifier, wallet));
+    const checks = await mapLimit(candidates, 8, nft => ownsOnChain(rpcUrl, contract, nft.identifier, wallet, network));
     const owned = candidates.filter((_, index) => checks[index]);
     return json({
       nfts: owned,
       next: typeof data.pageKey === "string" && data.pageKey ? data.pageKey : null,
-      source: "alchemy+base-ownerOf",
+      source: "alchemy+" + network.slug + "-ownerOf",
       owner: wallet,
       verifiedCount: owned.length,
       staleCount: candidates.length - owned.length,
       fetchedAt: new Date().toISOString()
     });
   } catch (error) {
-    return json({error: error?.message || "Could not verify NFT ownership on Base."}, 502);
+    return json({error: error?.message || "Could not verify NFT ownership on " + network.label + "."}, 502);
   }
 }

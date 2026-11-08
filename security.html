@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#090b0f">
 <meta name="robots" content="index,follow">
-<meta name="description" content="evm.market wallet permissions, security practices and external marketplace disclosures.">
+<meta name="description" content="evm.market wallet permissions, Base and Polygon security practices, and marketplace disclosures.">
 <title>Security &amp; wallet safety — evm.market</title>
 <style>
 :root{color-scheme:dark;--bg:#090b0f;--surface:#11151d;--line:#272e3b;--text:#f5f6f8;--muted:#aab3c2;--lime:#c4fa68}
@@ -18,29 +18,31 @@ a{color:var(--lime)}h1{font-size:clamp(30px,6vw,46px);line-height:1.1;letter-spa
 <main>
 <p><a href="/">← evm.market</a></p>
 <h1>Security &amp; wallet safety</h1>
-<p>evm.market is a Base NFT collection explorer for Base Punks, NodeMonkes, BYTEBEASTS and CryptoPunks [Base]. This page describes the wallet permissions and the boundaries of the marketplace experience.</p>
+<p>evm.market is an EVM NFT collection explorer for Base Punks, NodeMonkes, BYTEBEASTS, CryptoPunks [Base] and NodeMonkes [Polygon]. This page describes wallet permissions and the boundaries of the marketplace experience.</p>
 <div class="note"><strong>Never share your Secret Recovery Phrase or private key.</strong> evm.market will never ask you to enter them into this site.</div>
 <h2>What wallet connection does</h2>
 <ul>
 <li>Connection requests access to the public wallet account you choose.</li>
-<li>The site reads the wallet's current network and performs a read-only ownership check for an NFT when needed.</li>
-<li>Connection does not ask you to sign a message or send a blockchain transaction.</li>
-<li>The site does not switch networks automatically. If your wallet is not on Base mainnet (chain ID 8453), change networks yourself in the wallet.</li>
+<li>The site reads the wallet's current network and performs a read-only ownership check when requested.</li>
+<li>To verify a session, the site asks for a one-time message signature; this is not a blockchain transaction and does not grant token/NFT approvals.</li>
+<li>Wallet sign-in may request Base mainnet (chain ID 8453). Polygon market actions require Polygon mainnet (chain ID 137); an action can ask permission to switch the wallet network before any transaction is prepared.</li>
 </ul>
 <h2>Marketplace actions</h2>
-<p>Buy, Make offer, Sell and List links open an external marketplace. The external marketplace may request signatures, approvals or transactions. Before accepting any wallet prompt, verify the collection contract, token ID, recipient, total price, fees, expiration and permission scope. Reject prompts you do not understand.</p>
+<p>The collection's external marketplace link opens Rarible for NodeMonkes [Polygon] and OpenSea or Rarible for Base collections. evm.market also provides Seaport actions through OpenSea's API where supported. Approvals, order signatures, purchases and cancellations are separate wallet prompts. Review the chain, NFT contract, token ID, recipients, total price, fees, expiry and approval scope before accepting. Reject prompts you do not understand.</p>
+<p>NodeMonkes [Polygon] is linked to Rarible for browsing; Rarible orders are not read or executed in-app. No OpenSea collection slug has been verified for this Polygon contract, so the site does not claim its OpenSea orderbook is complete. If no compatible OpenSea order is returned, use the Rarible marketplace link.</p>
 <p>The supported collection contracts are:</p>
 <ul>
-<li>Base Punks: <code>0xb9110ba3266f4983193c0d5f55c792a94368af28</code></li>
-<li>NodeMonkes: <code>0x095b6ae2102094be8b5f06fac27275ddb9a8c70a</code></li>
-<li>BYTEBEASTS: <code>0x7325654c657520e30c56a04225a3d9acdf895e55</code></li>
-<li>CryptoPunks [Base]: <code>0x18d91b5597f1a7227d2960945c9a1417f0ff721d</code></li>
+<li>Base Punks · Base: <code>0xb9110ba3266f4983193c0d5f55c792a94368af28</code></li>
+<li>NodeMonkes · Base: <code>0x095b6ae2102094be8b5f06fac27275ddb9a8c70a</code></li>
+<li>BYTEBEASTS · Base: <code>0x7325654c657520e30c56a04225a3d9acdf895e55</code></li>
+<li>CryptoPunks [Base] · Base: <code>0x18d91b5597f1a7227d2960945c9a1417f0ff721d</code></li>
+<li>NodeMonkes [Polygon] · Polygon: <code>0xdf264d5da8dfaa41fa2e634afead44935af2ad66</code></li>
 </ul>
 <h2>Security reports and warnings</h2>
 <p>If your wallet or browser flags this domain, do not bypass the warning or sign anything. Please report the exact warning text, the wallet/browser name and version, the page URL and a screenshot with personal information removed through the wallet provider's official support channel. Do not include seed phrases, private keys or sensitive wallet data.</p>
 <p>For a possible MetaMask false positive, see the <a href="https://github.com/MetaMask/eth-phishing-detect" target="_blank" rel="noopener noreferrer">official MetaMask phishing-detection repository</a> and its <a href="https://github.com/MetaMask/eth-phishing-detect/blob/main/doc/lists-ref.md" target="_blank" rel="noopener noreferrer">domain review guidance</a>. A site owner cannot remove a warning from a wallet's reputation system by changing website code alone; the relevant provider must review and clear the classification.</p>
 <h2>Third-party services</h2>
-<p>NFT artwork and metadata may be served by third-party providers, and trading links lead to external marketplaces. Those services have their own security policies and wallet prompts. evm.market does not operate a native exchange contract and does not execute marketplace orders itself.</p>
+<p>NFT artwork and metadata may be served by third-party providers, and marketplace actions depend on OpenSea and the user's connected wallet. Rarible links leave evm.market for that marketplace. These services have their own policies and wallet prompts. evm.market does not operate an exchange contract, hold a user's keys, or sign orders on the user's behalf.</p>
 <p><a href="/">Return to evm.market</a></p>
 </main>
 </body>

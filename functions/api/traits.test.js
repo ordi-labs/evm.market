@@ -95,3 +95,6 @@ test("CryptoPunks [Base] traits resolve through its OpenSea collection slug", as
   assert.match(called, /\/traits\/cryptopunks-base$/);
   assert.equal((await response.json()).collection, "cryptopunks-base");
 });
+
+
+test("Polygon NodeMonkes traits use the local Alchemy index without inventing an OpenSea slug",async t=>{const originalFetch=globalThis.fetch;let calls=0;globalThis.fetch=async()=>{calls++;return new Response("{}",{status:200})};t.after(()=>{globalThis.fetch=originalFetch});const contract="0xdf264d5da8dfaa41fa2e634afead44935af2ad66";const response=await onRequestGet({request:new Request("https://site.test/api/traits?contract="+contract),env:{OPENSEA_API_KEY:"test"}});assert.equal(response.status,200);assert.deepEqual(await response.json(),{collection:"NodeMonkes [Polygon]",traits:[],source:"alchemy-local-index"});assert.equal(calls,0)});

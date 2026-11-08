@@ -2,7 +2,7 @@
   "id": "/",
   "name": "evm.market — Collect culture",
   "short_name": "evm.market",
-  "description": "A premium collector's market for Base Punks, NodeMonkes, BYTEBEASTS and CryptoPunks [Base] on Base.",
+  "description": "A premium collector's market for NFT collections on Base and Polygon, including NodeMonkes [Polygon].",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

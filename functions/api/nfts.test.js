@@ -132,3 +132,20 @@ test("CryptoPunks [Base] collection feed is served from its OpenSea contract end
   assert.equal(body.source, "opensea");
   assert.equal(body.nfts[0].identifier, "7");
 });
+
+
+test("Polygon NodeMonkes NFTs and trait scans use the Polygon Alchemy feed and pg cursor", async t => {
+  const originalFetch=globalThis.fetch,calls=[];
+  globalThis.fetch=async(url,init={})=>{const parsed=new URL(String(url));calls.push({url:parsed,init});return new Response(JSON.stringify({nfts:[{tokenId:"1",name:"NodeMonke #1",image:{cachedUrl:"https://img.test/1.png"},raw:{metadata:{attributes:[{trait_type:"Head",value:"Crown"}]}}}],pageKey:"polygon-page-2"}),{status:200})};
+  t.after(()=>{globalThis.fetch=originalFetch});
+  const contract="0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
+  const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract="+contract+"&scanTraits=1&limit=50"),env:{ALCHEMY_API_KEY:"polygon-test-key"}});
+  assert.equal(response.status,200);assert.match(calls[0].url.hostname,/polygon-mainnet\.g\.alchemy\.com/);assert.equal(calls[0].url.pathname.endsWith("/getNFTsForContract"),true);assert.equal(calls[0].url.searchParams.get("contractAddress"),contract);assert.equal(calls[0].url.searchParams.get("limit"),"50");
+  const body=await response.json();assert.equal(body.source,"alchemy-trait-index");assert.equal(body.nfts[0].metadata.attributes[0].value,"Crown");assert.match(body.next,/^pg_/);
+});
+
+test("Polygon NFT route rejects OpenSea cursors instead of restarting pagination", async t => {
+  let calls=0;const originalFetch=globalThis.fetch;globalThis.fetch=async()=>{calls++;return new Response("{}",{status:200})};t.after(()=>{globalThis.fetch=originalFetch});
+  const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract=0xdf264d5da8dfaa41fa2e634afead44935af2ad66&next=os_bad"),env:{ALCHEMY_API_KEY:"test"}});
+  assert.equal(response.status,400);assert.match((await response.json()).error,/Polygon pagination cursor/);assert.equal(calls,0);
+});

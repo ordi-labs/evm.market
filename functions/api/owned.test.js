@@ -21,8 +21,8 @@ test("rejects unsupported contracts and malformed wallet addresses", async () =>
   assert.equal(malformed.status, 400);
 });
 
-test("accepts all four configured collection contracts", async () => {
-  for (const contract of [CONTRACT, "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "0x7325654c657520e30c56a04225a3d9acdf895e55", "0x18d91b5597f1a7227d2960945c9a1417f0ff721d"]) {
+test("accepts all five configured collection contracts", async () => {
+  for (const contract of [CONTRACT, "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "0x7325654c657520e30c56a04225a3d9acdf895e55", "0x18d91b5597f1a7227d2960945c9a1417f0ff721d", "0xdf264d5da8dfaa41fa2e634afead44935af2ad66"]) {
     const response = await onRequestGet({request: new Request("https://site.test/api/owned?contract=" + contract + "&owner=" + WALLET), env: {}});
     assert.equal(response.status, 503);
     assert.match((await response.json()).error, /Alchemy NFT API/);
@@ -84,3 +84,14 @@ test("rejects an RPC endpoint that does not report Base mainnet", async t => {
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /Base mainnet/);
 });
+
+
+test("Polygon NodeMonkes inventory is verified with Polygon Alchemy and Polygon ownerOf", async t => {
+  const originalFetch=globalThis.fetch,calls=[],contract="0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
+  globalThis.fetch=async(input,init={})=>{const url=new URL(String(input));if(url.pathname.endsWith("/getNFTsForOwner")){calls.push(url);return new Response(JSON.stringify({ownedNfts:[{contract:{address:contract},tokenId:"9",name:"Polygon NodeMonke #9",image:{cachedUrl:"https://img.test/9.png"}}]}),{status:200})}const body=JSON.parse(init.body);if(body.method==="eth_chainId")return new Response(JSON.stringify({jsonrpc:"2.0",id:1,result:"0x89"}),{status:200});return new Response(JSON.stringify({jsonrpc:"2.0",id:1,result:ownerResult(WALLET)}),{status:200})};
+  t.after(()=>{globalThis.fetch=originalFetch});
+  const response=await onRequestGet({request:new Request("https://site.test/api/owned?contract="+contract+"&owner="+WALLET),env:{ALCHEMY_API_KEY:"private-test-key"}});
+  assert.equal(response.status,200);assert.match(calls[0].hostname,/polygon-mainnet\.g\.alchemy\.com/);assert.equal(calls[0].searchParams.get("contractAddresses[]"),contract);const body=await response.json();assert.equal(body.source,"alchemy+polygon-ownerOf");assert.equal(body.verifiedCount,1);assert.equal(body.nfts[0].verifiedOwner,true);assert.match(body.nfts[0].opensea_url,/og\.rarible\.com\/token\/polygon/);
+});
+
+test("rejects a Base RPC endpoint for Polygon ownership verification",async t=>{const originalFetch=globalThis.fetch;globalThis.fetch=async()=>new Response(JSON.stringify({jsonrpc:"2.0",id:1,result:"0x2105"}),{status:200});t.after(()=>{globalThis.fetch=originalFetch});const response=await onRequestGet({request:new Request("https://site.test/api/owned?contract=0xdf264d5da8dfaa41fa2e634afead44935af2ad66&owner="+WALLET),env:{ALCHEMY_API_KEY:"private-test-key"}});assert.equal(response.status,503);assert.match((await response.json()).error,/Polygon mainnet/)});

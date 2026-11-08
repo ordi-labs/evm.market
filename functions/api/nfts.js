@@ -1,9 +1,10 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
+const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
 const COLLECTION_SLUGS = new Map([[PUNKS,"base-punks"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[CRYPTOPUNKS_BASE,"cryptopunks-base"]]);
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, CRYPTOPUNKS_BASE]);
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
 const OPENSEA_PRIMARY = new Set([BYTEBEASTS, CRYPTOPUNKS_BASE]);
 
 const json = (data, status = 200, forceRefresh = false) => {
@@ -45,6 +46,13 @@ function decodeOpenSeaCursor(cursor) {
   const value = cursor.slice(3).replace(/-/g, "+").replace(/_/g, "/");
   return atob(value + "=".repeat((4 - value.length % 4) % 4));
 }
+function encodePolygonCursor(cursor) {
+  return cursor ? "pg_" + btoa(cursor).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "") : null;
+}
+function decodePolygonCursor(cursor) {
+  const value = cursor.slice(3).replace(/-/g, "+").replace(/_/g, "/");
+  return atob(value + "=".repeat((4 - value.length % 4) % 4));
+}
 
 function normalizeAlchemyNft(n, contract) {
   const tokenId = String(n.tokenId ?? n.token_id ?? n.identifier ?? "");
@@ -74,10 +82,28 @@ function normalizeAlchemyNft(n, contract) {
       image: normalizedImage,
       attributes: Array.isArray(attributes) ? attributes : []
     },
-    opensea_url: tokenId
-      ? "https://og.rarible.com/token/base/" + contract + ":" + encodeURIComponent(tokenId)
-      : "https://og.rarible.com/collection/base/" + contract + "/items"
+    opensea_url: contract === NODEMONKES_POLYGON
+      ? (tokenId ? "https://og.rarible.com/token/polygon/" + contract + ":" + encodeURIComponent(tokenId) : "https://og.rarible.com/collection/polygon/" + contract + "/items")
+      : (tokenId ? "https://og.rarible.com/token/base/" + contract + ":" + encodeURIComponent(tokenId) : "https://og.rarible.com/collection/base/" + contract + "/items")
   };
+}
+
+async function fetchPolygonAlchemyPage({contract, limit, cursor, key, forceRefresh}) {
+  const endpoint = new URL("https://polygon-mainnet.g.alchemy.com/nft/v3/" + encodeURIComponent(key) + "/getNFTsForContract");
+  endpoint.searchParams.set("contractAddress", contract);
+  endpoint.searchParams.set("withMetadata", "true");
+  endpoint.searchParams.set("limit", String(limit));
+  if (cursor) endpoint.searchParams.set("pageKey", cursor);
+  const response = await fetch(endpoint, {
+    headers: {"accept":"application/json", ...(forceRefresh ? {"cache-control":"no-cache","pragma":"no-cache"} : {})},
+    ...(forceRefresh ? {cache:"no-store"} : {})
+  });
+  if (!response.ok) return {ok:false,status:response.status};
+  const data = await response.json();
+  const nfts = Array.isArray(data.nfts) ? await Promise.all(data.nfts.map(async nft =>
+    normalizeAlchemyNft(await resolveAlchemyMetadata(nft, forceRefresh), contract)
+  )) : [];
+  return {ok:true,nfts,next:typeof data.pageKey === "string" ? data.pageKey : null};
 }
 
 async function refreshAlchemyTokenMetadata(nft, key, contract) {
@@ -239,20 +265,41 @@ export async function onRequestGet({request, env}) {
   if (next && (next.length > 2048 || !/^[A-Za-z0-9_.~+/=-]+$/.test(next))) {
     return json({error:"Invalid pagination cursor."}, 400, forceRefresh);
   }
-  if (scanTraits && nextProvided && (!next || !next.startsWith("os_"))) {
+  if (scanTraits && nextProvided && (!next || !(contract === NODEMONKES_POLYGON ? next.startsWith("pg_") : next.startsWith("os_")))) {
     return json({error:"Invalid collection scan cursor."}, 400, true);
   }
 
   const openSeaKey = env.OPENSEA_API_KEY || env.OPENSEA_API;
   const isOpenSeaCursor = Boolean(next && next.startsWith("os_"));
+  const isPolygonCursor = Boolean(next && next.startsWith("pg_"));
+  if (contract === NODEMONKES_POLYGON && next && !isPolygonCursor) return json({error:"Invalid Polygon pagination cursor."}, 400, forceRefresh);
+  if (contract !== NODEMONKES_POLYGON && isPolygonCursor) return json({error:"Invalid collection pagination cursor."}, 400, forceRefresh);
   let openSeaCursor = null;
+  let polygonCursor = null;
   try {
     if (isOpenSeaCursor) openSeaCursor = decodeOpenSeaCursor(next);
   } catch {
     return json({error:"Invalid pagination cursor."}, 400, forceRefresh);
   }
-  if (scanTraits && nextProvided && !openSeaCursor) {
+  if (isPolygonCursor) {
+    try { polygonCursor = decodePolygonCursor(next); }
+    catch { return json({error:"Invalid Polygon pagination cursor."}, 400, forceRefresh); }
+  }
+  if (scanTraits && nextProvided && contract !== NODEMONKES_POLYGON && !openSeaCursor) {
     return json({error:"Invalid collection scan cursor."}, 400, true);
+  }
+
+  if (scanTraits && contract === NODEMONKES_POLYGON) {
+    const configured = env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API;
+    if (!configured) return json({error:"ALCHEMY_API_KEY is required to scan Polygon NodeMonkes traits."}, 503, true);
+    try {
+      const key = alchemyKeyFromConfig(configured);
+      const result = await fetchPolygonAlchemyPage({contract,limit,cursor:polygonCursor,key,forceRefresh:true});
+      if (!result.ok) return json({error:result.status === 429 ? "Alchemy rate limit reached while scanning Polygon NodeMonkes." : "Polygon NFT scan is temporarily unavailable.",upstreamStatus:result.status,source:"alchemy-trait-index"},result.status === 429 ? 429 : 502,true);
+      return json({nfts:result.nfts,next:encodePolygonCursor(result.next),source:"alchemy-trait-index",pageSize:limit},200,true);
+    } catch {
+      return json({error:"Polygon NFT scan is temporarily unavailable.",source:"alchemy-trait-index"},502,true);
+    }
   }
 
   if (scanTraits) {
@@ -273,6 +320,7 @@ export async function onRequestGet({request, env}) {
     return json({error:"Choose a valid trait type and value."}, 400, forceRefresh);
   }
   if (traitType && traitValue) {
+    if (contract === NODEMONKES_POLYGON) return json({error:"Polygon NodeMonkes traits are filtered from the complete local index; finish the collection scan first."}, 409, forceRefresh);
     if (!openSeaKey) return json({error:"OpenSea API is not configured on the server."}, 503, forceRefresh);
     try {
       const result = await fetchOpenSeaTraitPage({contract,traitType,traitValue,limit,cursor:isOpenSeaCursor?openSeaCursor:null,apiKey:openSeaKey});
@@ -280,6 +328,20 @@ export async function onRequestGet({request, env}) {
       return json({nfts:result.nfts,next:encodeOpenSeaCursor(result.next),source:"opensea-traits",refreshed:forceRefresh,fetchedAt:new Date().toISOString()},200,forceRefresh);
     } catch {
       return json({error:"OpenSea trait-filtered NFT data is temporarily unavailable.",source:"opensea"},502,forceRefresh);
+    }
+  }
+
+  // The Polygon NodeMonkes contract is indexed on Polygon via Alchemy; its market link is Rarible.
+  if (contract === NODEMONKES_POLYGON) {
+    const configured = env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API;
+    if (!configured) return json({error:"ALCHEMY_API_KEY is required for Polygon NFT data.",source:null},503,forceRefresh);
+    try {
+      const key = alchemyKeyFromConfig(configured);
+      const result = await fetchPolygonAlchemyPage({contract,limit,cursor:polygonCursor,key,forceRefresh});
+      if (!result.ok) return json({error:result.status === 429 ? "Alchemy rate limit reached. Retry shortly." : "Polygon NFT data is temporarily unavailable.",upstreamStatus:result.status,source:"alchemy"},result.status === 429 ? 429 : 502,forceRefresh);
+      return json({nfts:result.nfts,next:encodePolygonCursor(result.next),source:"alchemy",refreshed:forceRefresh,fetchedAt:new Date().toISOString()},200,forceRefresh);
+    } catch {
+      return json({error:"Polygon NFT data is temporarily unavailable.",source:"alchemy"},502,forceRefresh);
     }
   }
 

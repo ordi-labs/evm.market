@@ -1,28 +1,27 @@
 # evm.market
 
-Premium Base NFT collection explorer for Base Punks, NodeMonkes, BYTEBEASTS and CryptoPunks [Base]. This repository is dedicated to evm.market and does not modify the existing wallet or ordinal sites.
+Premium EVM NFT collection explorer for Base and Polygon. This repository is dedicated to evm.market and does not modify the existing wallet or ordinal sites.
 
 ## Collections
-- Base Punks: 0xb9110ba3266f4983193c0d5f55c792a94368af28 (`base-punks`)
-- NodeMonkes: 0x095b6ae2102094be8b5f06fac27275ddb9a8c70a (`nodemonkes`)
-- BYTEBEASTS: 0x7325654c657520e30c56a04225a3d9acdf895e55 (`bytebeasts-base`)
-- CryptoPunks [Base]: 0x18d91b5597f1a7227d2960945c9a1417f0ff721d (`cryptopunks-base`)
+- Base Punks — Base: `0xb9110ba3266f4983193c0d5f55c792a94368af28` (`base-punks`)
+- NodeMonkes — Base: `0x095b6ae2102094be8b5f06fac27275ddb9a8c70a` (`nodemonkes`)
+- BYTEBEASTS — Base: `0x7325654c657520e30c56a04225a3d9acdf895e55` (`bytebeasts-base`)
+- CryptoPunks [Base] — Base: `0x18d91b5597f1a7227d2960945c9a1417f0ff721d` (`cryptopunks-base`)
+- NodeMonkes [Polygon] — Polygon: `0xdf264d5da8dfaa41fa2e634afead44935af2ad66` (Rarible collection)
 
 ## Cloudflare Pages
-- Project: evm-market-premium
+- Project: `evm-market-premium`
 - Production URL: https://evm-market-premium.pages.dev
-- Source: ordi-labs/evm.market, branch main
-- Build command: none; output directory: repository root (.)
-- Configure `ETHEREUM_API` as a Cloudflare Pages secret in production and preview, preferably as an HTTPS JSON-RPC endpoint for **Base mainnet**. `/api/rpc` forwards only allowlisted read methods to this endpoint; it never exposes the endpoint to the browser. Alternatively, `ALCHEMY_API_KEY` or `ALCHEMY_API` can configure the read-only proxy using Alchemy Base RPC. Alchemy NFT-data features may still require an Alchemy key.
-- OPENSEA_API_KEY must remain a Cloudflare Pages secret and may be used for NFT metadata and the server-side trade API. Never commit API keys.
+- Source: `ordi-labs/evm.market`, branch `main`
+- Build command: none; output directory: repository root (`.`)
+- Configure `ETHEREUM_API` as a Cloudflare Pages secret for Base-compatible HTTPS RPC reads. `/api/rpc` checks for Base mainnet and permits only its configured methods; it never exposes the endpoint to the browser.
+- Polygon NFT browsing and ownership checks use Alchemy's Polygon mainnet NFT/RPC endpoints. Configure `ALCHEMY_API_KEY` (or `ALCHEMY_API`) as a Pages secret; alternatively, set `POLYGON_RPC` to an HTTPS Polygon mainnet JSON-RPC endpoint. The `/api/polygon-rpc` route checks chain ID 137 and allows only read methods; transaction submission remains in the connected wallet.
+- `OPENSEA_API_KEY` must remain a Cloudflare Pages secret. Never commit API keys.
 
 ## Functionality
-Responsive collection browsing, contract allowlisting, search, cursor pagination, Reown AppKit connections via WalletConnect on mobile and injected browser-extension wallets on desktop, and Base network switching.
+Responsive collection browsing, contract allowlisting, search, cursor pagination, full-collection trait indexing, exact wallet ownership checks, Reown AppKit / WalletConnect, and explicit Base or Polygon network selection. OpenSea provides the Base collection feeds; Alchemy provides the Polygon NodeMonkes feed. NFT cards link to Rarible on Polygon.
 
-## Seaport integration status
-A server-side foundation is being prepared in `functions/api/trade.js`:
-- Uses the OpenSea API from Cloudflare Pages Functions, keeping the API key out of browser code.
-- Restricts trade API calls to Base (`base`) and the four allowlisted collection contracts.
-- Supports reading listing/offer data and submitting an already wallet-signed listing/offer payload after basic structure, signature-format, contract, and token-ID validation.
+## Marketplace and protocol scope
+The four Base collections use OpenSea's Seaport 1.6 listing, offer, fulfillment, and cancellation routes on Base. NodeMonkes [Polygon] also supports Seaport 1.6 write actions on Polygon (chain ID 137), with POL/MATIC or Polygon WETH (`0x7ceb23fd6bc0add59e62ac25578270cff1b9f619`) as listing currencies and Polygon WETH for offers. The API key stays server-side; every approval, signature, purchase, or cancellation is reviewed and authorized by the user's connected wallet.
 
-**Native trading is partially implemented and must not be considered production-ready until live Base tests pass.** Buy prepares an OpenSea Seaport fulfillment transaction and asks the connected wallet to send it; listing uses OpenSea listing actions and wallet signing/approval. Bid/offer uses the validated OpenSea actions flow. The `/api/rpc` endpoint uses `ETHEREUM_API` (a Base-compatible HTTPS JSON-RPC endpoint) or the Alchemy Base API for read-only ownership checks and transaction receipt confirmation. It explicitly blocks transaction submission methods: the user wallet must approve and submit every transaction. Configure `OPENSEA_API_KEY` and `BASE_SEAPORT_ADDRESS` as Cloudflare Pages secrets before exercising write endpoints. `BASE_SEAPORT_ADDRESS` must be the verified Seaport contract address for Base; the route fails closed if it is missing.
+Rarible is currently provided as the Polygon collection and NFT destination; Rarible orders are not queried or executed in-app. No OpenSea collection slug has been verified for the Polygon contract, so the site does not fabricate a collection-wide OpenSea orderbook or listing status. The in-app Buy action relies on OpenSea's live item listing feed; if no supported OpenSea order is returned, the user is directed to Rarible. OpenSea listing and offer creation are separate Seaport actions and remain subject to the provider's support and the wallet's explicit prompts.

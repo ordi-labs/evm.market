@@ -6,6 +6,8 @@ const CONTRACT = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const SEAPORT = "0x0000000000000068f116a894984e2db1123eb395";
 const HASH = "0x" + "a".repeat(64);
 const WETH = "0x4200000000000000000000000000000000000006";
+const POLYGON_CONTRACT = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
+const POLYGON_WETH = "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619";
 function futureIso(months) { const d = new Date(); const day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + months); const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(); d.setUTCDate(Math.min(day, last)); return d.toISOString(); }
 
 function request(action, body, { method = "POST", contract = CONTRACT, tokenId = "1" } = {}) {
@@ -545,4 +547,188 @@ test("CryptoPunks [Base] collection listings use the configured OpenSea slug", a
   const response = await onRequest({request: new Request("https://market.test/api/trade?action=collection-listings&contract=0x18d91b5597f1a7227d2960945c9a1417f0ff721d&limit=10"), env: {OPENSEA_API_KEY: "private-test-key"}});
   assert.equal(response.status, 200);
   assert.match(requested.pathname, /\/listings\/collection\/cryptopunks-base\/best$/);
+});
+
+function polygonSignedOrderBody(side = "listing", currency = side === "listing" ? "POL" : "WETH") {
+  const body = signedOrderBody(side, side === "listing" ? 6 : 1);
+  body.expected.currency = currency;
+  const nft = side === "listing" ? body.parameters.offer[0] : body.parameters.consideration[0];
+  nft.token = POLYGON_CONTRACT;
+  if (side === "listing") {
+    body.parameters.consideration[0].token = currency === "WETH" ? POLYGON_WETH : "0x0000000000000000000000000000000000000000";
+    body.parameters.consideration[0].itemType = currency === "WETH" ? 1 : 0;
+  } else {
+    body.parameters.offer[0].token = POLYGON_WETH;
+  }
+  return body;
+}
+
+test("builds Polygon listing actions with chain-qualified NFT id, native zero-address or Polygon WETH", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith("/api/v2/listings/actions"));
+    const payload = JSON.parse(init.body);
+    assert.equal(payload.items[0].chain, "polygon");
+    assert.equal(payload.items[0].nft_id, "polygon/" + POLYGON_CONTRACT + "/1");
+    assert.equal(payload.items[0].price.currency, "0x0000000000000000000000000000000000000000");
+    assert.equal(payload.items[0].contract, POLYGON_CONTRACT);
+    return new Response(JSON.stringify({ steps: [] }), { status: 200 });
+  };
+  try {
+    const response = await onRequest({ request: request("listing-actions", {
+      address: "0x1111111111111111111111111111111111111111",
+      items: [{ nft_id: "polygon/" + POLYGON_CONTRACT + "/1", quantity: 1, price: { currency: "MATIC", amount: "0.05" }, end_time: futureIso(6) }]
+    }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(response.status, 200);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("builds Polygon offer actions with Polygon chain, NFT id and canonical Polygon WETH", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith("/api/v2/offers/actions"));
+    const payload = JSON.parse(init.body);
+    assert.equal(payload.item.chain, "polygon");
+    assert.equal(payload.item.nft_id, "polygon/" + POLYGON_CONTRACT + "/1");
+    assert.equal(payload.price.currency, POLYGON_WETH);
+    return new Response(JSON.stringify({ steps: [] }), { status: 200 });
+  };
+  try {
+    const response = await onRequest({ request: request("offer-actions", {
+      address: "0x1111111111111111111111111111111111111111",
+      item: { chain: "polygon", contract: POLYGON_CONTRACT, token_id: "1" }, quantity: 1,
+      price: { currency: POLYGON_WETH, amount: "0.2" }, end_time: futureIso(1)
+    }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(response.status, 200);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("posts validated Polygon Seaport listing and offer orders to the Polygon paths", async () => {
+  const originalFetch = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (url, init) => {
+    seen.push({ url: String(url), body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ order_hash: HASH }), { status: 200 });
+  };
+  try {
+    for (const [action, side] of [["post-listing", "listing"], ["post-offer", "offer"]]) {
+      const response = await onRequest({ request: request(action, polygonSignedOrderBody(side), { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key", POLYGON_SEAPORT_ADDRESS: SEAPORT } });
+      assert.equal(response.status, 200);
+    }
+    assert.ok(seen[0].url.endsWith("/api/v2/orders/polygon/seaport/listings"));
+    assert.ok(seen[1].url.endsWith("/api/v2/orders/polygon/seaport/offers"));
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects Polygon orders signed for a different NFT/network, protocol or payment token", async () => {
+  let called = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { called = true; return new Response("{}", { status: 200 }); };
+  try {
+    const wrongNft = polygonSignedOrderBody("listing");
+    wrongNft.parameters.offer[0].token = CONTRACT;
+    let response = await onRequest({ request: request("post-listing", wrongNft, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(response.status, 400);
+    const wrongProtocol = polygonSignedOrderBody("listing");
+    wrongProtocol.protocol_address = "0x3333333333333333333333333333333333333333";
+    response = await onRequest({ request: request("post-listing", wrongProtocol, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(response.status, 400);
+    const wrongPayment = polygonSignedOrderBody("listing", "WETH");
+    wrongPayment.parameters.consideration[0].token = WETH;
+    response = await onRequest({ request: request("post-listing", wrongPayment, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(response.status, 400);
+    const wrongChainOffer = await onRequest({ request: request("offer-actions", {
+      address: "0x1111111111111111111111111111111111111111",
+      item: { chain: "base", contract: POLYGON_CONTRACT, token_id: "1" }, quantity: 1,
+      price: { currency: POLYGON_WETH, amount: "0.2" }, end_time: futureIso(1)
+    }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(wrongChainOffer.status, 400);
+    assert.equal(called, false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects Polygon fulfillment for a Base-chain order and requests Polygon-native payment for Polygon listings", async () => {
+  const originalFetch = globalThis.fetch;
+  let paymentToken;
+  globalThis.fetch = async (_url, init) => {
+    paymentToken = JSON.parse(init.body).payment.token_address;
+    return new Response(JSON.stringify({ transactions: [] }), { status: 200 });
+  };
+  try {
+    const wrongChain = await onRequest({ request: request("fulfill-listing", {
+      fulfiller: { address: "0x1111111111111111111111111111111111111111" },
+      listing: { order_hash: HASH, chain: "base", protocol_address: SEAPORT, asset: { contract: POLYGON_CONTRACT, identifier: "1" } }
+    }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(wrongChain.status, 400);
+    const correct = await onRequest({ request: request("fulfill-listing", {
+      fulfiller: { address: "0x1111111111111111111111111111111111111111" },
+      listing: { order_hash: HASH, chain: "polygon", protocol_address: SEAPORT, asset: { contract: POLYGON_CONTRACT, identifier: "1" } }
+    }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(correct.status, 200);
+    assert.equal(paymentToken, "0x0000000000000000000000000000000000000000");
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("does not invent an OpenSea collection slug for Polygon NodeMonkes reads", async () => {
+  let called = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { called = true; throw new Error("must not fetch"); };
+  try {
+    for (const action of ["listings", "offers"]) {
+      const response = await onRequest({ request: request(action, undefined, { method: "GET", contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+      assert.equal(response.status, 200);
+      const data = await response.json();
+      assert.deepEqual(data.orders, []);
+      assert.match(data.info, /No OpenSea collection slug/);
+    }
+    assert.equal(called, false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+
+test("uses Polygon WETH for WETH listing fulfillment instead of native currency", async () => {
+  const originalFetch = globalThis.fetch;
+  let payload;
+  globalThis.fetch = async (_url, init) => {
+    payload = JSON.parse(init.body);
+    return new Response(JSON.stringify({ transactions: [] }), { status: 200 });
+  };
+  try {
+    const order = {
+      order_hash: HASH, chain: "polygon", protocol_address: SEAPORT,
+      asset: { contract: POLYGON_CONTRACT, identifier: "1" },
+      protocol_data: { parameters: { consideration: [{ itemType: 1, token: POLYGON_WETH }] } }
+    };
+    const response = await onRequest({ request: request("fulfill-listing", {
+      fulfiller: { address: "0x1111111111111111111111111111111111111111" }, listing: order
+    }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(response.status, 200);
+    assert.equal(payload.payment.chain, "polygon");
+    assert.equal(payload.payment.token_address, POLYGON_WETH);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("requests Polygon Seaport cancellation only after verifying matching chain, maker, NFT and protocol", async () => {
+  const originalFetch = globalThis.fetch;
+  let cancelPath;
+  globalThis.fetch = async (url, init = {}) => {
+    const target = String(url);
+    if (target.endsWith("/cancel/actions")) {
+      cancelPath = target;
+      return new Response(JSON.stringify({ steps: [] }), { status: 200 });
+    }
+    assert.ok(target.endsWith("/api/v2/orders/chain/polygon/protocol/" + SEAPORT + "/" + HASH));
+    return new Response(JSON.stringify({ order: {
+      chain: "polygon", status: "ACTIVE", order_hash: HASH, protocol_address: SEAPORT,
+      asset: { contract: POLYGON_CONTRACT, identifier: "1" }, remaining_quantity: 1,
+      protocol_data: { parameters: { offerer: "0x1111111111111111111111111111111111111111" } }
+    } }), { status: 200 });
+  };
+  try {
+    const response = await onRequest({ request: request("cancel-actions", {
+      address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: SEAPORT
+    }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+    assert.equal(response.status, 200);
+    assert.ok(cancelPath.endsWith("/cancel/actions"));
+  } finally { globalThis.fetch = originalFetch; }
 });

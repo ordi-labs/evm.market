@@ -8,7 +8,7 @@ const normalizeStart = html.indexOf("function normalizeTraitCatalog(data){");
 const normalizeEnd = html.indexOf("function updateTraitValueOptions", normalizeStart);
 const normalizeTraitCatalog = vm.runInNewContext(`${html.slice(normalizeStart, normalizeEnd)}; normalizeTraitCatalog`, {Map});
 test("trait filter fails closed when item attributes are missing", () => {
-  assert.match(html, /if\(traitType&&traitValue\)\{const attrs=traitPairs\(n\);if\(!attrs\.some\(t=>t\.type===traitType&&t\.value===traitValue\)\)return false;\}/);
+  assert.match(html, /if\(traitType&&traitValue\)\{const attrs=traitPairs\(n\);if\(!attrs\.some\(t=>t\.type===traitType&&t\.value===traitValue\)\)return false\}/);
 });
 test("trait catalog loads collection facets instead of only the current page", () => {
   assert.match(html, /scanTraitIndex\(/);
@@ -59,11 +59,12 @@ test("the complete local index counts each NFT once for each trait value", () =>
   assert.equal(result[0].values.find(x=>x.value==="Male").count,1);
 });
 test("a positive active listing is kept even if its price could not be parsed", () => {
-  assert.match(html, /if\(status==="listed"&&\(!listing\|\|listing===false\|\|listing==="loading"\|\|listing\.error\)\)return false;/);
+  assert.match(html, /if\(!polygon&&listingFilter\.value==="listed"&&\(!listing\|\|listing===false\|\|listing==="loading"\|\|listing\.error\)\)return false/);
   assert.doesNotMatch(html, /const price=listingPrice\(order\);if\(!price\)continue/);
 });
-test("the first NFT-card render resolves its listing state before reading the price", () => {
-  assert.match(html, /loadLiveListing\(n,contract\);const listing=activeListing\(n\);price\.textContent=/);
+test("the first NFT-card render resolves supported listing state while labelling Polygon Rarible separately", () => {
+  assert.match(html, /if\(!polygon\)loadLiveListing\(n,contract\);const listing=activeListing\(n\);price\.textContent=polygon\?/);
+  assert.match(html, /Rarible marketplace · listings external/);
 });
 
 test("owned view is exposed as a wallet-scoped mode for all configured collections", () => {
@@ -73,8 +74,12 @@ test("owned view is exposed as a wallet-scoped mode for all configured collectio
 });
 
 
-test("CryptoPunks [Base] is selectable with its verified Base contract and OpenSea slug", () => {
+test("CryptoPunks [Base] and NodeMonkes Polygon are selectable with verified contracts", () => {
   assert.match(html, /data-collection="cryptopunksbase"/);
-  assert.match(html, /name:"CryptoPunks \[Base\]",contract:"0x18d91b5597f1a7227d2960945c9a1417f0ff721d",slug:"cryptopunks-base"/);
-  assert.match(html, /Four collections/);
+  assert.match(html, /name:"CryptoPunks \[Base\]",contract:"0x18d91b5597f1a7227d2960945c9a1417f0ff721d",slug:"cryptopunks-base",network:"base"/);
+  assert.match(html, /data-collection="nodemonkespolygon"/);
+  assert.match(html, /name:"NodeMonkes \[Polygon\]",contract:"0xdf264d5da8dfaa41fa2e634afead44935af2ad66",slug:"",network:"polygon"/);
+  assert.match(html, /Five collections/);
+  assert.match(html, /chainId:"0x89"/);
+  assert.match(html, /api\/polygon-rpc/);
 });

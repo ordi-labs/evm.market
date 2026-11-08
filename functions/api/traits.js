@@ -1,3 +1,4 @@
+const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
 const COLLECTIONS = new Map([
   ["0xb9110ba3266f4983193c0d5f55c792a94368af28", "base-punks"],
   ["0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "nodemonkes"],
@@ -32,11 +33,16 @@ async function parseResponse(response) {
 export async function onRequestGet({request, env}) {
   const url = new URL(request.url);
   const contract = String(url.searchParams.get("contract") || "").toLowerCase();
+  if (contract === NODEMONKES_POLYGON) {
+    return url.searchParams.has("tokenIds")
+      ? json({collection:"NodeMonkes [Polygon]",nftTraits:{},source:"alchemy-local-index"})
+      : json({collection:"NodeMonkes [Polygon]",traits:[],source:"alchemy-local-index"});
+  }
   const slug = COLLECTIONS.get(contract);
   if (!slug) return json({error: "Unsupported collection contract."}, 400);
+  const tokenIdsParam = url.searchParams.get("tokenIds");
   const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
   if (!apiKey) return json({error: "OpenSea API is not configured on the server."}, 503);
-  const tokenIdsParam = url.searchParams.get("tokenIds");
   try {
     if (tokenIdsParam !== null) {
       const tokenIds = [...new Set(tokenIdsParam.split(",").map(id => id.trim()))];
