@@ -3,7 +3,7 @@
 Premium EVM NFT collection explorer for Base and Polygon. This repository is dedicated to evm.market and does not modify the existing wallet or ordinal sites.
 
 ## Collections
-- Base Punks — Base: `0xb9110ba3266f4983193c0d5f55c792a94368af28` (`base-punks`)
+- Base Punks — Base: `0xb9110ba3266f4983193c0d5f55c792a94368af28` (`punksonbase`)
 - NodeMonkes — Base: `0x095b6ae2102094be8b5f06fac27275ddb9a8c70a` (`nodemonkes`)
 - BYTEBEASTS — Base: `0x7325654c657520e30c56a04225a3d9acdf895e55` (`bytebeasts-base`)
 - CryptoPunks [Base] — Base: `0x18d91b5597f1a7227d2960945c9a1417f0ff721d` (`cryptopunks-base`)
