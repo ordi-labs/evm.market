@@ -280,6 +280,37 @@ test("proxies a paginated collection-wide OpenSea best-listing feed", async () =
   }
 });
 
+test("proxies active NodeMonkes Polygon listings through Rarible", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const requestUrl = new URL(String(url));
+    assert.equal(requestUrl.pathname, "/v0.1/orders/sell/byCollection");
+    assert.equal(requestUrl.searchParams.get("collection"), "POLYGON:" + POLYGON_CONTRACT);
+    assert.equal(requestUrl.searchParams.get("continuation"), "page-two");
+    assert.equal(new Headers(init.headers).get("x-api-key"), "rarible-test-key");
+    return new Response(JSON.stringify({
+      orders: [{
+        id: "rarible-order-1",
+        status: "ACTIVE",
+        make: { assetType: { assetClass: "ERC721", contract: POLYGON_CONTRACT, tokenId: "25" } }
+      }],
+      continuation: "page-three"
+    }), { status: 200 });
+  };
+  try {
+    const url = new URL("https://market.test/api/trade?action=collection-listings&contract=" + POLYGON_CONTRACT + "&limit=200&next=page-two");
+    const response = await onRequest({ request: new Request(url), env: { RARIBLE_API_KEY: "rarible-test-key" } });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.source, "rarible");
+    assert.equal(data.listings[0].asset.contract, POLYGON_CONTRACT);
+    assert.equal(data.listings[0].asset.identifier, "25");
+    assert.equal(data.next, "page-three");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("validates collection listing contract and page limit before contacting OpenSea", async () => {
   const invalidContract = await onRequest({
     request: new Request("https://market.test/api/trade?action=collection-listings&contract=0x1111111111111111111111111111111111111111"),
