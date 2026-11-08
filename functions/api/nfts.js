@@ -272,7 +272,7 @@ export async function onRequestGet({request, env}) {
   const openSeaKey = env.OPENSEA_API_KEY || env.OPENSEA_API;
   const isOpenSeaCursor = Boolean(next && next.startsWith("os_"));
   const isPolygonCursor = Boolean(next && next.startsWith("pg_"));
-  if (contract === NODEMONKES_POLYGON && next && !isPolygonCursor) return json({error:"Invalid Polygon pagination cursor."}, 400, forceRefresh);
+  if (contract === NODEMONKES_POLYGON && next && !(scanTraits ? isOpenSeaCursor : isPolygonCursor)) return json({error:"Invalid Polygon pagination cursor."}, 400, forceRefresh);
   if (contract !== NODEMONKES_POLYGON && isPolygonCursor) return json({error:"Invalid collection pagination cursor."}, 400, forceRefresh);
   let openSeaCursor = null;
   let polygonCursor = null;

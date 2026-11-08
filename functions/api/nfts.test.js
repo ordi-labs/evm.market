@@ -144,6 +144,17 @@ test("Polygon NodeMonkes NFTs and trait scans use the Polygon Alchemy feed and p
   const body=await response.json();assert.equal(body.source,"alchemy-trait-index");assert.equal(body.nfts[0].metadata.attributes[0].value,"Crown");assert.match(body.next,/^pg_/);
 });
 
+test("Polygon NodeMonkes OpenSea trait scans accept the next OpenSea cursor", async t => {
+  const originalFetch=globalThis.fetch,calls=[];
+  globalThis.fetch=async(url)=>{const parsed=new URL(String(url));calls.push(parsed);return new Response(JSON.stringify({nfts:[{identifier:calls.length,name:"NodeMonke #"+calls.length,traits:[{trait_type:"Head",value:"Crown"}]}],next:calls.length===1?"page-two":null}),{status:200})};
+  t.after(()=>{globalThis.fetch=originalFetch});
+  const contract="0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
+  const first=await onRequestGet({request:new Request("https://site.test/api/nfts?contract="+contract+"&scanTraits=1&limit=50"),env:{OPENSEA_API_KEY:"polygon-opensea-key"}});
+  assert.equal(first.status,200);const firstBody=await first.json();assert.match(firstBody.next,/^os_/);
+  const second=await onRequestGet({request:new Request("https://site.test/api/nfts?contract="+contract+"&scanTraits=1&limit=50&next="+encodeURIComponent(firstBody.next)),env:{OPENSEA_API_KEY:"polygon-opensea-key"}});
+  assert.equal(second.status,200);assert.equal(calls.length,2);assert.equal(calls[1].searchParams.get("next"),"page-two");
+});
+
 test("Polygon NFT route rejects OpenSea cursors instead of restarting pagination", async t => {
   let calls=0;const originalFetch=globalThis.fetch;globalThis.fetch=async()=>{calls++;return new Response("{}",{status:200})};t.after(()=>{globalThis.fetch=originalFetch});
   const response=await onRequestGet({request:new Request("https://site.test/api/nfts?contract=0xdf264d5da8dfaa41fa2e634afead44935af2ad66&next=os_bad"),env:{ALCHEMY_API_KEY:"test"}});
