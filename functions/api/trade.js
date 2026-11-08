@@ -80,7 +80,7 @@ function validateEndTime(value, maxMonths, label) {
 function validateOrderExpiration(parameters, side) {
   const seconds = Number(parameters.endTime ?? parameters.end_time);
   const start = Number(parameters.startTime ?? parameters.start_time);
-  const maxMonths = side === "listing" ? 6 : 1;
+  const maxMonths = 6;
   const now = Math.floor(Date.now() / 1000);
   if (!Number.isSafeInteger(start) || start <= 0 || start > now + 60) throw new Error("The signed order must include a valid start time.");
   const max = Math.floor(addUtcMonths(new Date(start * 1000), maxMonths).getTime() / 1000) + 60;
@@ -260,7 +260,7 @@ function validateOfferActionsRequest(body, asset) {
   if (currency !== network.weth.toLowerCase()) throw new Error("Offers require canonical WETH on " + network.chain + ".");
   const amount = String(price.amount ?? "").trim();
   if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/.test(amount) || !/[1-9]/.test(amount)) throw new Error("Offer amount must be positive with up to 18 decimal places.");
-  const endTime = validateEndTime(body.end_time, 1, "Offer");
+  const endTime = validateEndTime(body.end_time, 6, "Offer");
   const openSeaItem = { chain: network.chain, contract: asset.contract, token_id: asset.tokenId };
   if (network.chain === "polygon") openSeaItem.nft_id = network.chain + "/" + asset.contract + "/" + asset.tokenId;
   return { address, item: openSeaItem, quantity: 1, price: { currency: network.weth, amount }, end_time: endTime, use_creator_fee: false };
