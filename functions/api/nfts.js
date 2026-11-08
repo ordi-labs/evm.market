@@ -201,8 +201,8 @@ function mergeArtworkFromOpenSea(alchemyNfts, openSeaNfts) {
   });
 }
 
-async function fetchOpenSea({contract, limit, cursor, apiKey, forceRefresh}) {
-  const endpoint = new URL("https://api.opensea.io/api/v2/chain/base/contract/" + contract + "/nfts");
+async function fetchOpenSea({contract, chain = "base", limit, cursor, apiKey, forceRefresh}) {
+  const endpoint = new URL("https://api.opensea.io/api/v2/chain/" + chain + "/contract/" + contract + "/nfts");
   endpoint.searchParams.set("limit", String(limit));
   if (cursor) endpoint.searchParams.set("next", cursor);
   const response = await fetch(endpoint, {
@@ -222,10 +222,10 @@ async function fetchOpenSea({contract, limit, cursor, apiKey, forceRefresh}) {
   };
 }
 
-async function fillMissingOpenSeaTraits({contract,nfts,apiKey}) {
+async function fillMissingOpenSeaTraits({contract,chain="base",nfts,apiKey}) {
   const missing=nfts.filter(n=>!Array.isArray(n.metadata?.attributes)||n.metadata.attributes.length===0);
   if(!missing.length)return {ok:true,nfts};
-  const identifiers=missing.map(n=>String(n.identifier||n.token_id||"")).filter(Boolean).map(token_id=>({chain:"base",contract_address:contract,token_id}));
+  const identifiers=missing.map(n=>String(n.identifier||n.token_id||"")).filter(Boolean).map(token_id=>({chain,contract_address:contract,token_id}));
   if(!identifiers.length)return {ok:true,nfts};
   const response=await fetch("https://api.opensea.io/api/v2/nfts/batch",{method:"POST",headers:{accept:"application/json","content-type":"application/json","x-api-key":apiKey},body:JSON.stringify({identifiers})});
   if(!response.ok)return {ok:false,status:response.status};
@@ -265,7 +265,7 @@ export async function onRequestGet({request, env}) {
   if (next && (next.length > 2048 || !/^[A-Za-z0-9_.~+/=-]+$/.test(next))) {
     return json({error:"Invalid pagination cursor."}, 400, forceRefresh);
   }
-  if (scanTraits && nextProvided && (!next || !(contract === NODEMONKES_POLYGON ? next.startsWith("pg_") : next.startsWith("os_")))) {
+  if (scanTraits && nextProvided && (!next || !next.startsWith("os_"))) {
     return json({error:"Invalid collection scan cursor."}, 400, true);
   }
 
@@ -290,8 +290,19 @@ export async function onRequestGet({request, env}) {
   }
 
   if (scanTraits && contract === NODEMONKES_POLYGON) {
+    if (openSeaKey) {
+      try {
+        const result = await fetchOpenSea({contract,chain:"polygon",limit,cursor:openSeaCursor,apiKey:openSeaKey,forceRefresh:true});
+        if (!result.ok) return json({error:result.status===429?"OpenSea rate limit reached while scanning Polygon NodeMonkes traits.":"OpenSea Polygon collection scan is temporarily unavailable.",upstreamStatus:result.status,source:"opensea-trait-index"},result.status===429?429:502,true);
+        const enriched=await fillMissingOpenSeaTraits({contract,chain:"polygon",nfts:result.nfts,apiKey:openSeaKey});
+        if (!enriched.ok) return json({error:enriched.status===429?"OpenSea rate limit reached while loading Polygon NFT traits.":"OpenSea Polygon NFT traits are temporarily unavailable.",upstreamStatus:enriched.status,source:"opensea-trait-index"},enriched.status===429?429:502,true);
+        return json({nfts:enriched.nfts,next:encodeOpenSeaCursor(result.next),source:"opensea-trait-index",pageSize:limit},200,true);
+      } catch {
+        return json({error:"OpenSea Polygon collection scan is temporarily unavailable.",source:"opensea-trait-index"},502,true);
+      }
+    }
     const configured = env.ALCHEMY_POLYGON_API || env.ALCHEMY_API_KEY || env.ALCHEMY_API;
-    if (!configured) return json({error:"ALCHEMY_API_KEY is required to scan Polygon NodeMonkes traits."}, 503, true);
+    if (!configured) return json({error:"OPENSEA_API_KEY is required to scan Polygon NodeMonkes traits."}, 503, true);
     try {
       const key = alchemyKeyFromConfig(configured);
       const result = await fetchPolygonAlchemyPage({contract,limit,cursor:polygonCursor,key,forceRefresh:true});
@@ -307,7 +318,7 @@ export async function onRequestGet({request, env}) {
     try {
       const result = await fetchOpenSea({contract,limit,cursor:isOpenSeaCursor?openSeaCursor:null,apiKey:openSeaKey,forceRefresh:true});
       if (!result.ok) return json({error:result.status===429?"OpenSea rate limit reached while scanning collection traits.":"OpenSea collection scan is temporarily unavailable.",upstreamStatus:result.status,source:"opensea-trait-index"},result.status===429?429:502,true);
-      const enriched=await fillMissingOpenSeaTraits({contract,nfts:result.nfts,apiKey:openSeaKey});
+      const enriched=await fillMissingOpenSeaTraits({contract,chain:"base",nfts:result.nfts,apiKey:openSeaKey});
       if (!enriched.ok) return json({error:enriched.status===429?"OpenSea rate limit reached while loading NFT traits.":"OpenSea NFT traits are temporarily unavailable.",upstreamStatus:enriched.status,source:"opensea-trait-index"},enriched.status===429?429:502,true);
       return json({nfts:enriched.nfts,next:encodeOpenSeaCursor(result.next),source:"opensea-trait-index",pageSize:limit},200,true);
     } catch {

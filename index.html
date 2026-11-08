@@ -357,7 +357,7 @@ async function load(reset=false,forceRefresh=false){
   else if(data.source==="alchemy")setNotice("<strong>Live data connected.</strong> "+cfg.name+" · "+networkForContract(cfg.contract).name+" mainnet · Alchemy NFT API.");
   else if(data.source==="rarible")setNotice("<strong>Live data connected.</strong> "+cfg.name+" · "+networkForContract(cfg.contract).name+" mainnet · Rarible API.");
   else setNotice("<strong>Data source status.</strong> Live API returned a response, but verify its source before trading.");
-  render();loadCollectionListings(cfg.contract)
+  render();if(!requestedOwned&&!isPolygonCollection(cfg.contract))loadCollectionListings(cfg.contract)
  }catch(error){
   if(requestId!==loadSequence)return;
   items=[];$("grid").innerHTML='<div class="empty"><strong>Live collection data is unavailable.</strong><br>'+safe(error.message||error)+'<br><br>Check the API secrets and Cloudflare Pages deployment, then refresh.</div>';
