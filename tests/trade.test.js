@@ -262,7 +262,7 @@ test("proxies a paginated collection-wide OpenSea best-listing feed", async () =
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     const requestUrl = new URL(String(url));
-    assert.equal(requestUrl.pathname, "/api/v2/listings/collection/base-punks/best");
+    assert.equal(requestUrl.pathname, "/api/v2/listings/collection/punksonbase/best");
     assert.equal(requestUrl.searchParams.get("limit"), "200");
     assert.equal(requestUrl.searchParams.get("next"), "page-two");
     assert.equal(new Headers(init.headers).get("x-api-key"), "test-key");
@@ -296,7 +296,7 @@ test("validates collection listing contract and page limit before contacting Ope
 test("uses current OpenSea best-listing endpoint and returns the UI-compatible shape", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    assert.ok(String(url).endsWith("/api/v2/listings/collection/base-punks/nfts/1/best"));
+    assert.ok(String(url).endsWith("/api/v2/listings/collection/punksonbase/nfts/1/best"));
     assert.equal(new Headers(init.headers).get("x-api-key"), "test-key");
     return new Response(JSON.stringify({
       asset: { contract: CONTRACT, identifier: "1" },
@@ -320,7 +320,7 @@ test("uses current OpenSea best-listing endpoint and returns the UI-compatible s
 test("returns an empty order list when OpenSea has no best offer", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
-    assert.ok(String(url).endsWith("/api/v2/offers/collection/base-punks/nfts/1/best"));
+    assert.ok(String(url).endsWith("/api/v2/offers/collection/punksonbase/nfts/1/best"));
     return new Response(JSON.stringify({ detail: "Not found" }), { status: 404 });
   };
   try {
