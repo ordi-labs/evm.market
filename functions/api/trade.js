@@ -18,6 +18,7 @@ const COLLECTIONS = new Map([
   [NODEMONKES_POLYGON, { network: POLYGON_NETWORK, slug: null }]
 ]);
 const OPENSEA_API = "https://api.opensea.io/api/v2";
+const RARIBLE_API = "https://api.rarible.org/v0.1";
 const PROTOCOL = "seaport";
 
 function json(data, status = 200, extraHeaders = {}) {
@@ -56,6 +57,47 @@ function expectedSeaportAddress(env, network) {
     throw new Error("Configured Seaport address does not match the canonical " + (network.chain === "base" ? "Base" : "Polygon") + " Seaport 1.6 deployment.");
   }
   return network.seaport.toLowerCase();
+}
+
+function raribleApiKey(env) {
+  return String(env.RARIBLE_API_KEY || env.RARIBLE_API || "").trim();
+}
+
+function raribleOrderToListing(order, contract) {
+  const assetType = order?.make?.assetType || order?.make?.asset_type || {};
+  const asset = order?.make?.asset || {};
+  const tokenId = String(assetType.tokenId ?? assetType.token_id ?? asset.tokenId ?? asset.token_id ?? "");
+  const orderContract = String(assetType.contract ?? assetType.address ?? asset.contract ?? asset.address ?? "").toLowerCase();
+  if (orderContract !== contract.toLowerCase() || !/^(0|[1-9][0-9]{0,77})$/.test(tokenId)) return null;
+  return {
+    ...order,
+    marketplace: "rarible",
+    status: String(order.status || "ACTIVE").toUpperCase(),
+    order_hash: order.id || order.hash || order.orderId,
+    asset: { contract, identifier: tokenId },
+    protocol_data: { ...(order.protocol_data || {}), source: "rarible" }
+  };
+}
+
+async function raribleCollectionListings(env, contract, limit, next) {
+  const apiKey = raribleApiKey(env);
+  if (!apiKey) return json({ error: "Rarible API is not configured on the server." }, 503);
+  const params = new URLSearchParams({ collection: "POLYGON:" + contract, size: String(limit), status: "ACTIVE" });
+  if (next) params.set("continuation", next);
+  let response;
+  try {
+    response = await fetch(RARIBLE_API + "/orders/sell/byCollection?" + params, { headers: { accept: "application/json", "x-api-key": apiKey } });
+  } catch { return json({ error: "Rarible request failed." }, 502); }
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { return json({ error: "Invalid response from marketplace provider." }, 502); }
+  if (!response.ok) {
+    const retryAfter = response.headers.get("retry-after");
+    return json({ error: "Rarible request failed.", providerStatus: response.status, retryAfter, details: data?.errors || data?.message || null }, response.status === 429 ? 429 : 502, response.status === 429 && retryAfter ? { "retry-after": retryAfter } : {});
+  }
+  const source = Array.isArray(data.orders) ? data.orders : Array.isArray(data) ? data : [];
+  const listings = source.map(order => raribleOrderToListing(order, contract)).filter(Boolean);
+  return json({ listings, next: data.continuation || null, source: "rarible" });
 }
 
 function addUtcMonths(date, months) {
@@ -292,6 +334,7 @@ export async function onRequest({ request, env }) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) return json({ error: "Listing page limit must be between 1 and 200." }, 400);
     const next = String(url.searchParams.get("next") || "");
     if (next.length > 2000) return json({ error: "Listing pagination cursor is too long." }, 400);
+    if (contract === NODEMONKES_POLYGON) return raribleCollectionListings(env, contract, limit, next);
     if (!collection.slug) return json({ listings: [], next: null, info: "No OpenSea collection slug is configured for this Polygon collection; listings are unavailable here." });
     const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
     if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
