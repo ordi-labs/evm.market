@@ -3,7 +3,7 @@ const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
-const COLLECTION_SLUGS = new Map([[PUNKS,"base-punks"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[CRYPTOPUNKS_BASE,"cryptopunks-base"]]);
+const COLLECTION_SLUGS = new Map([[PUNKS,"punksonbase"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[CRYPTOPUNKS_BASE,"cryptopunks-base"]]);
 const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
 const OPENSEA_PRIMARY = new Set([BYTEBEASTS, CRYPTOPUNKS_BASE]);
 
@@ -159,7 +159,7 @@ async function resolveAlchemyMetadata(nft, forceRefresh = false) {
   return nft;
 }
 
-function normalizeOpenSeaNft(n, contract) {
+function normalizeOpenSeaNft(n, contract, chain = "base") {
   const tokenId = String(n.identifier ?? n.token_id ?? n.tokenId ?? "");
   const metadata = n.metadata || {};
   const normalizedImage = [
@@ -179,7 +179,7 @@ function normalizeOpenSeaNft(n, contract) {
       attributes: Array.isArray(n.traits) ? n.traits : Array.isArray(metadata.attributes) ? metadata.attributes : Array.isArray(n.attributes) ? n.attributes : []
     },
     opensea_url: tokenId
-      ? "https://opensea.io/assets/base/" + contract + "/" + encodeURIComponent(tokenId)
+      ? "https://opensea.io/assets/" + chain + "/" + contract + "/" + encodeURIComponent(tokenId)
       : "https://opensea.io/collection/" + (COLLECTION_SLUGS.get(contract) || "") + "?status=all"
   };
 }
@@ -217,7 +217,7 @@ async function fetchOpenSea({contract, chain = "base", limit, cursor, apiKey, fo
   const data = await response.json();
   return {
     ok:true,
-    nfts:Array.isArray(data.nfts) ? data.nfts.map(n => normalizeOpenSeaNft(n, contract)) : [],
+    nfts:Array.isArray(data.nfts) ? data.nfts.map(n => normalizeOpenSeaNft(n, contract, chain)) : [],
     next:typeof data.next === "string" ? data.next : null
   };
 }

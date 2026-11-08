@@ -1,6 +1,6 @@
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
 const COLLECTIONS = new Map([
-  ["0xb9110ba3266f4983193c0d5f55c792a94368af28", "base-punks"],
+  ["0xb9110ba3266f4983193c0d5f55c792a94368af28", "punksonbase"],
   ["0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "nodemonkes"],
   ["0x7325654c657520e30c56a04225a3d9acdf895e55", "bytebeasts-base"],
   ["0x18d91b5597f1a7227d2960945c9a1417f0ff721d", "cryptopunks-base"]
