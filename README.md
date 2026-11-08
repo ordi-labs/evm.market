@@ -21,7 +21,7 @@ Premium EVM NFT collection explorer for Base and Polygon. This repository is ded
 - `OPENSEA_API_KEY` must remain a Cloudflare Pages secret. Never commit API keys.
 
 ## Functionality
-Responsive collection browsing, contract allowlisting, search, cursor pagination, full-collection trait indexing, exact wallet ownership checks, Reown AppKit / WalletConnect, and explicit Base or Polygon network selection. OpenSea provides the Base collection feeds; Alchemy provides the Polygon NodeMonkes feed. NFT cards link to Rarible on Polygon.
+Responsive collection browsing, contract allowlisting, search, cursor pagination, live OpenSea ETH/WETH minimum/maximum price filtering with ascending/descending price sorting for Base collections, full-collection trait indexing, exact wallet ownership checks, Reown AppKit / WalletConnect, and explicit Base or Polygon network selection. OpenSea provides the Base collection feeds; Alchemy provides the Polygon NodeMonkes feed. NFT cards link to Rarible on Polygon.
 
 ## Marketplace and protocol scope
 The six Base collections use OpenSea's Seaport 1.6 listing, offer, fulfillment, and cancellation routes on Base. NodeMonkes [Polygon] also supports Seaport 1.6 write actions on Polygon (chain ID 137), with POL/MATIC or Polygon WETH (`0x7ceb23fd6bc0add59e62ac25578270cff1b9f619`) as listing currencies and Polygon WETH for offers. The API key stays server-side; every approval, signature, purchase, or cancellation is reviewed and authorized by the user's connected wallet.

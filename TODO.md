@@ -14,3 +14,4 @@
 - [x] Ajouter Base Oddities (`0x8b245812b0755b7e0259395beca3e591734660fb`) et Pixel Nomads (`0x13ef1ea93602873d11a92bc434c8ed580487b2dc`) sur Base avec leurs slugs OpenSea vérifiés; activer les flux NFT, le scan global et les filtres de traits, la vérification de propriété et les actions Seaport Base.
 - [x] Ajouter les parcours Seaport 1.6 dédiés à Polygon (chain ID 137, POL/MATIC ou Polygon WETH pour les listings, Polygon WETH pour les offres), avec garde-fous serveur et signature/transactions toujours soumises au portefeuille.
 - [x] Rendre explicite que l’app ne lit pas les ordres Rarible et n’invente pas de slug OpenSea pour le carnet de listings Polygon; bump du cache shell PWA pour le nouveau sélecteur et les routes Polygon.
+- [x] Ajouter un filtre de prix live configurable par minimum/maximum ETH/WETH aux collections Base; charger le carnet OpenSea complet, inclure les NFT listés hors page courante, paginer les résultats et désactiver ce filtre sur Polygon.

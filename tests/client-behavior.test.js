@@ -4,6 +4,9 @@ import vm from "node:vm";
 import {readFile} from "node:fs/promises";
 
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const priceHelpersStart = html.indexOf("function parsePriceRange(");
+const priceHelpersEnd = html.indexOf("function render()", priceHelpersStart);
+const priceHelpers = vm.runInNewContext(`${html.slice(priceHelpersStart, priceHelpersEnd)}; ({parsePriceRange, matchesPriceRange})`);
 const normalizeStart = html.indexOf("function normalizeTraitCatalog(data){");
 const normalizeEnd = html.indexOf("function updateTraitValueOptions", normalizeStart);
 const normalizeTraitCatalog = vm.runInNewContext(`${html.slice(normalizeStart, normalizeEnd)}; normalizeTraitCatalog`, {Map});
@@ -86,4 +89,35 @@ test("CryptoPunks [Base] and NodeMonkes Polygon are selectable with verified con
   assert.match(html, /name:"Pixel Nomads",contract:"0x13ef1ea93602873d11a92bc434c8ed580487b2dc",slug:"pixel-nomads-783494962",network:"base"/);
   assert.match(html, /chainId:"0x89"/);
   assert.match(html, /api\/polygon-rpc/);
+});
+
+test("live ETH/WETH price filters accept inclusive configurable bounds and exclude other currencies", () => {
+  const {parsePriceRange, matchesPriceRange} = priceHelpers;
+  const range = parsePriceRange("0.05", "0.20");
+  assert.equal(range.active, true);
+  assert.equal(range.valid, true);
+  assert.equal(range.min, 0.05);
+  assert.equal(range.max, 0.20);
+  assert.equal(matchesPriceRange({price: {value: 0.05, currency: "ETH"}}, range), true);
+  assert.equal(matchesPriceRange({price: {value: 0.20, currency: "WETH"}}, range), true);
+  assert.equal(matchesPriceRange({price: {value: 0.049, currency: "ETH"}}, range), false);
+  assert.equal(matchesPriceRange({price: {value: 0.10, currency: "USDC"}}, range), false);
+  assert.equal(matchesPriceRange(false, range), false);
+});
+
+test("live price bounds validate empty, one-sided, reversed and negative ranges", () => {
+  const {parsePriceRange} = priceHelpers;
+  assert.equal(parsePriceRange("", "").active, false);
+  assert.equal(parsePriceRange("0.1", "").valid, true);
+  assert.equal(parsePriceRange("", "0.5").valid, true);
+  assert.equal(parsePriceRange("0.5", "0.1").valid, false);
+  assert.equal(parsePriceRange("-0.1", "1").valid, false);
+});
+
+test("live price controls load the collection-wide feed and remain Base-only", () => {
+  assert.match(html, /id="priceMinFilter" class="price-input" type="number" min="0" step="any"/);
+  assert.match(html, /id="priceMaxFilter" class="price-input" type="number" min="0" step="any"/);
+  assert.match(html, /priceRangeActive&&priceRange\.valid/);
+  assert.match(html, /priceMinFilter"\)\.disabled=polygon/);
+  assert.match(html, /renderItems\.push\(\{token_id:String\(id\),name:"Token #"\+String\(id\),metadata:\{\}\}\)/);
 });
