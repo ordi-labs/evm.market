@@ -342,10 +342,22 @@ export async function onRequestGet({request, env}) {
     }
   }
 
-  // The Polygon NodeMonkes contract is indexed on Polygon via Alchemy; its market link is Rarible.
+  // NodeMonkes Polygon uses OpenSea as the live source when OPENSEA_API_KEY is configured.
+  // Alchemy remains a compatibility fallback for existing deployments.
   if (contract === NODEMONKES_POLYGON) {
-    const configured = env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API;
-    if (!configured) return json({error:"ALCHEMY_API_KEY is required for Polygon NFT data.",source:null},503,forceRefresh);
+    if (openSeaKey && !isPolygonCursor) {
+      try {
+        const result = await fetchOpenSea({contract,chain:"polygon",limit,cursor:isOpenSeaCursor?openSeaCursor:null,apiKey:openSeaKey,forceRefresh:true});
+        if (!result.ok) return json({error:result.status===429?"OpenSea rate limit reached. Retry shortly.":"OpenSea Polygon collection data is temporarily unavailable.",upstreamStatus:result.status,source:"opensea"},result.status===429?429:502,true);
+        const enriched=await fillMissingOpenSeaTraits({contract,chain:"polygon",nfts:result.nfts,apiKey:openSeaKey});
+        if (!enriched.ok) return json({error:"OpenSea Polygon NFT metadata is temporarily unavailable.",upstreamStatus:enriched.status,source:"opensea"},enriched.status===429?429:502,true);
+        return json({nfts:enriched.nfts,next:encodeOpenSeaCursor(result.next),source:"opensea",refreshed:true,fetchedAt:new Date().toISOString()},200,true);
+      } catch {
+        return json({error:"OpenSea Polygon collection data is temporarily unavailable.",source:"opensea"},502,true);
+      }
+    }
+    const configured = env.ALCHEMY_POLYGON_API || env.ALCHEMY_API_KEY || env.ALCHEMY_API;
+    if (!configured) return json({error:"OPENSEA_API_KEY is required for live Polygon NFT data.",source:null},503,forceRefresh);
     try {
       const key = alchemyKeyFromConfig(configured);
       const result = await fetchPolygonAlchemyPage({contract,limit,cursor:polygonCursor,key,forceRefresh});
