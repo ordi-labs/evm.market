@@ -290,7 +290,7 @@ export async function onRequestGet({request, env}) {
   }
 
   if (scanTraits && contract === NODEMONKES_POLYGON) {
-    const configured = env.ALCHEMY_API_KEY || env.ALCHEMY_API || env.ETHEREUM_API;
+    const configured = env.ALCHEMY_POLYGON_API || env.ALCHEMY_API_KEY || env.ALCHEMY_API;
     if (!configured) return json({error:"ALCHEMY_API_KEY is required to scan Polygon NodeMonkes traits."}, 503, true);
     try {
       const key = alchemyKeyFromConfig(configured);
