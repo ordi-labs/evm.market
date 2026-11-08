@@ -9,7 +9,6 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@rarible/sdk": "^0.13.200-beta.0",
     "@reown/appkit": "^1.8.24",
     "@reown/appkit-adapter-ethers": "^1.8.24",
     "buffer": "^6.0.3",
@@ -20,7 +19,6 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^6.2.1",
     "fake-indexeddb": "^6.2.7",
-    "typescript": "5.9.3",
     "vite": "^8.3.6"
   }
 }
