@@ -11,7 +11,7 @@ const NATIVE_CURRENCY = "0x0000000000000000000000000000000000000000";
 const BASE_NETWORK = { chain: "base", label: "Base", chainId: 8453, seaport: BASE_SEAPORT, weth: BASE_WETH, nativeLabels: ["ETH"], envKey: "BASE_SEAPORT_ADDRESS" };
 const POLYGON_NETWORK = { chain: "polygon", label: "Polygon", chainId: 137, seaport: POLYGON_SEAPORT, weth: POLYGON_WETH, nativeLabels: ["POL", "MATIC"], envKey: "POLYGON_SEAPORT_ADDRESS" };
 const COLLECTIONS = new Map([
-  [PUNKS, { network: BASE_NETWORK, slug: "punksonbase" }],
+  [PUNKS, { network: BASE_NETWORK, slug: "punks-base-1" }],
   [NODEMONKES, { network: BASE_NETWORK, slug: "nodemonkes" }],
   [BYTEBEASTS, { network: BASE_NETWORK, slug: "bytebeasts-base" }],
   [CRYPTOPUNKS_BASE, { network: BASE_NETWORK, slug: "cryptopunks-base" }],
@@ -350,7 +350,17 @@ export async function onRequest({ request, env }) {
       const retryAfter = response.headers.get("retry-after");
       return json({ error: "OpenSea request failed.", providerStatus: response.status, retryAfter, details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502, response.status === 429 && retryAfter ? { "retry-after": retryAfter } : {});
     }
-    return json(data);
+    const rawListings = Array.isArray(data.listings) ? data.listings : Array.isArray(data.orders) ? data.orders : [];
+    const listings = rawListings.filter(order => {
+      const chain = String(order?.chain || "").toLowerCase();
+      if (chain && chain !== collection.network.chain) return false;
+      const asset = order?.asset || order?.nft || order?.item || {};
+      const params = order?.protocol_data?.parameters || order?.protocolData?.parameters || {};
+      const nftItem = (Array.isArray(params.offer) ? params.offer : []).find(item => Number(item?.itemType) === 2);
+      const orderContract = String(asset.contract || asset.contract_address || order?.asset_contract?.address || nftItem?.token || "").toLowerCase();
+      return orderContract === contract;
+    });
+    return json({ ...data, listings, ...(Array.isArray(data.orders) ? { orders: listings } : {}) });
   }
 
   let asset;
@@ -438,11 +448,14 @@ export async function onRequest({ request, env }) {
     }
     const order = data?.order && typeof data.order === "object" ? data.order : data && typeof data === "object" ? data : null;
     const identity = order?.asset || order?.nft || order?.item || null;
-    const orderContract = identity?.contract || identity?.contract_address || identity?.address;
-    const orderTokenId = identity?.identifier ?? identity?.token_id ?? identity?.tokenId;
-    const hasIdentity = Boolean(orderContract || orderTokenId);
-    const isMatchingAsset = !hasIdentity || (String(orderContract || "").toLowerCase() === asset.contract && String(orderTokenId ?? "") === asset.tokenId);
-    const supported = isMatchingAsset && String(order?.status || "ACTIVE").toUpperCase() === "ACTIVE" && Boolean(order?.order_hash || order?.orderHash || order?.protocol_data?.order_hash);
+    const params = order?.protocol_data?.parameters || order?.protocolData?.parameters || {};
+    const targetItems = action === "listings" ? params.offer : params.consideration;
+    const nftItem = (Array.isArray(targetItems) ? targetItems : []).find(item => Number(item?.itemType) === 2);
+    const orderContract = identity?.contract || identity?.contract_address || identity?.address || nftItem?.token;
+    const orderTokenId = identity?.identifier ?? identity?.token_id ?? identity?.tokenId ?? nftItem?.identifierOrCriteria ?? nftItem?.identifier_or_criteria;
+    const chainMatches = !order?.chain || String(order.chain).toLowerCase() === asset.network.chain;
+    const isMatchingAsset = String(orderContract || "").toLowerCase() === asset.contract && String(orderTokenId ?? "") === asset.tokenId;
+    const supported = chainMatches && isMatchingAsset && String(order?.status || "ACTIVE").toUpperCase() === "ACTIVE" && Boolean(order?.order_hash || order?.orderHash || order?.protocol_data?.order_hash);
     const orders = supported ? [order] : [];
     return json(action === "listings" ? { ...data, orders, listings: orders } : { ...data, orders, offers: orders });
   }

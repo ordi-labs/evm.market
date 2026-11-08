@@ -262,17 +262,21 @@ test("proxies a paginated collection-wide OpenSea best-listing feed", async () =
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     const requestUrl = new URL(String(url));
-    assert.equal(requestUrl.pathname, "/api/v2/listings/collection/punksonbase/best");
+    assert.equal(requestUrl.pathname, "/api/v2/listings/collection/punks-base-1/best");
     assert.equal(requestUrl.searchParams.get("limit"), "200");
     assert.equal(requestUrl.searchParams.get("next"), "page-two");
     assert.equal(new Headers(init.headers).get("x-api-key"), "test-key");
-    return new Response(JSON.stringify({listings: [{asset: {contract: CONTRACT, identifier: "25"}, order_hash: HASH}], next: "page-three"}), {status: 200});
+    return new Response(JSON.stringify({listings: [
+      {chain: "base", asset: {contract: CONTRACT, identifier: "25"}, order_hash: HASH},
+      {chain: "ethereum", asset: {contract: "0x3a314d38b6e174240046bd2feb47f0d5d655c569", identifier: "25"}, order_hash: "foreign-order"}
+    ], next: "page-three"}), {status: 200});
   };
   try {
     const url = new URL("https://market.test/api/trade?action=collection-listings&contract=" + CONTRACT + "&limit=200&next=page-two");
     const response = await onRequest({request: new Request(url), env: {OPENSEA_API_KEY: "test-key"}});
     assert.equal(response.status, 200);
     const data = await response.json();
+    assert.equal(data.listings.length, 1);
     assert.equal(data.listings[0].asset.identifier, "25");
     assert.equal(data.next, "page-three");
   } finally {
@@ -327,7 +331,7 @@ test("validates collection listing contract and page limit before contacting Ope
 test("uses current OpenSea best-listing endpoint and returns the UI-compatible shape", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
-    assert.ok(String(url).endsWith("/api/v2/listings/collection/punksonbase/nfts/1/best"));
+    assert.ok(String(url).endsWith("/api/v2/listings/collection/punks-base-1/nfts/1/best"));
     assert.equal(new Headers(init.headers).get("x-api-key"), "test-key");
     return new Response(JSON.stringify({
       asset: { contract: CONTRACT, identifier: "1" },
@@ -351,7 +355,7 @@ test("uses current OpenSea best-listing endpoint and returns the UI-compatible s
 test("returns an empty order list when OpenSea has no best offer", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
-    assert.ok(String(url).endsWith("/api/v2/offers/collection/punksonbase/nfts/1/best"));
+    assert.ok(String(url).endsWith("/api/v2/offers/collection/punks-base-1/nfts/1/best"));
     return new Response(JSON.stringify({ detail: "Not found" }), { status: 404 });
   };
   try {
@@ -363,6 +367,26 @@ test("returns an empty order list when OpenSea has no best offer", async () => {
     const data = await response.json();
     assert.deepEqual(data.orders, []);
     assert.deepEqual(data.offers, []);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("rejects a best listing returned for a different contract or chain", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    chain: "ethereum",
+    asset: { contract: "0x3a314d38b6e174240046bd2feb47f0d5d655c569", identifier: "1" },
+    status: "ACTIVE",
+    order_hash: HASH
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  try {
+    const response = await onRequest({
+      request: request("listings", undefined, { method: "GET" }),
+      env: { OPENSEA_API_KEY: "test-key" }
+    });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.deepEqual(data.orders, []);
+    assert.deepEqual(data.listings, []);
   } finally { globalThis.fetch = originalFetch; }
 });
 
