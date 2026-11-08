@@ -11,7 +11,7 @@ const NATIVE_CURRENCY = "0x0000000000000000000000000000000000000000";
 const BASE_NETWORK = { chain: "base", label: "Base", chainId: 8453, seaport: BASE_SEAPORT, weth: BASE_WETH, nativeLabels: ["ETH"], envKey: "BASE_SEAPORT_ADDRESS" };
 const POLYGON_NETWORK = { chain: "polygon", label: "Polygon", chainId: 137, seaport: POLYGON_SEAPORT, weth: POLYGON_WETH, nativeLabels: ["POL", "MATIC"], envKey: "POLYGON_SEAPORT_ADDRESS" };
 const COLLECTIONS = new Map([
-  [PUNKS, { network: BASE_NETWORK, slug: "punksonbase" }],
+  [PUNKS, { network: BASE_NETWORK, slug: "base-punks" }],
   [NODEMONKES, { network: BASE_NETWORK, slug: "nodemonkes" }],
   [BYTEBEASTS, { network: BASE_NETWORK, slug: "bytebeasts-base" }],
   [CRYPTOPUNKS_BASE, { network: BASE_NETWORK, slug: "cryptopunks-base" }],

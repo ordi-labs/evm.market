@@ -16,7 +16,7 @@ test("NFT route asks OpenSea for the selected real collection trait and normaliz
   const url = new URL("https://site.test/api/nfts?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28&limit=2&traitType=Sex&traitValue=Female");
   const response = await onRequestGet({request: new Request(url), env: {OPENSEA_API_KEY: "private-test-key"}});
   assert.equal(response.status, 200);
-  assert.equal(requested.url.pathname, "/api/v2/collection/punksonbase/nfts");
+  assert.equal(requested.url.pathname, "/api/v2/collection/base-punks/nfts");
   assert.deepEqual(JSON.parse(requested.url.searchParams.get("traits")), [{traitType: "Sex", value: "Female"}]);
   assert.equal(requested.init.headers["x-api-key"], "private-test-key");
   const body = await response.json();
