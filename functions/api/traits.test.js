@@ -19,7 +19,7 @@ test("traits route proxies the official collection facet endpoint", async t => {
   t.after(() => { globalThis.fetch = originalFetch; });
   const response = await onRequestGet({request: new Request("https://site.test/api/traits?contract=0xb9110ba3266f4983193c0d5f55c792a94368af28"), env: {OPENSEA_API_KEY: "private-test-key"}});
   assert.equal(response.status, 200);
-  assert.match(called, /\/traits\/punksonbase$/);
+  assert.match(called, /\/traits\/punks-base-1$/);
   assert.match(response.headers.get("cache-control"), /s-maxage=300/);
   const body = await response.json();
   assert.equal(body.traits.categories.Sex, "string");
