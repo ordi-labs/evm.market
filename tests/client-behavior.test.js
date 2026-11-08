@@ -79,7 +79,11 @@ test("CryptoPunks [Base] and NodeMonkes Polygon are selectable with verified con
   assert.match(html, /name:"CryptoPunks \[Base\]",contract:"0x18d91b5597f1a7227d2960945c9a1417f0ff721d",slug:"cryptopunks-base",network:"base"/);
   assert.match(html, /data-collection="nodemonkespolygon"/);
   assert.match(html, /name:"NodeMonkes \[Polygon\]",contract:"0xdf264d5da8dfaa41fa2e634afead44935af2ad66",slug:"",network:"polygon"/);
-  assert.match(html, /Five collections/);
+  assert.match(html, /Seven collections/);
+  assert.match(html, /data-collection="baseoddities"/);
+  assert.match(html, /data-collection="pixelnomads"/);
+  assert.match(html, /name:"Base Oddities",contract:"0x8b245812b0755b7e0259395beca3e591734660fb",slug:"base-oddities",network:"base"/);
+  assert.match(html, /name:"Pixel Nomads",contract:"0x13ef1ea93602873d11a92bc434c8ed580487b2dc",slug:"pixel-nomads-783494962",network:"base"/);
   assert.match(html, /chainId:"0x89"/);
   assert.match(html, /api\/polygon-rpc/);
 });

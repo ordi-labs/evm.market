@@ -1,9 +1,11 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
+const BASE_ODDITIES = "0x8b245812b0755b7e0259395beca3e591734660fb";
+const PIXEL_NOMADS = "0x13ef1ea93602873d11a92bc434c8ed580487b2dc";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
 const NETWORK = contract => contract === NODEMONKES_POLYGON ? "polygon" : "base";
 const json = (data, status = 200, forceRefresh = false) => new Response(JSON.stringify(data), {status, headers: {"content-type":"application/json; charset=utf-8","cache-control":forceRefresh ? "no-store, no-cache, must-revalidate, max-age=0" : "public, max-age=15, s-maxage=30","pragma":forceRefresh ? "no-cache" : "","x-content-type-options":"nosniff","access-control-allow-origin":"*"}});
 const text = value => typeof value === "string" ? value : "";
@@ -65,12 +67,12 @@ export async function onRequestGet({request, env}) {
   const contract = (url.searchParams.get("contract") || "").toLowerCase();
   const tokenId = (url.searchParams.get("tokenId") || "").trim();
   const forceOpenSea = url.searchParams.get("fallback") === "1";
-  const preferOpenSea = contract === BYTEBEASTS || contract === CRYPTOPUNKS_BASE || (forceOpenSea && contract !== NODEMONKES_POLYGON);
+  const preferOpenSea = contract === BYTEBEASTS || contract === BASE_ODDITIES || contract === PIXEL_NOMADS || contract === CRYPTOPUNKS_BASE || (forceOpenSea && contract !== NODEMONKES_POLYGON);
   if (!ALLOWED.has(contract)) return json({error:"Unsupported collection contract."}, 400, forceOpenSea);
   if (!tokenId || tokenId.length > 100 || !/^[0-9]+$/.test(tokenId)) return json({error:"A numeric tokenId is required."}, 400, forceOpenSea);
 
   // Alchemy is the primary metadata source for Base Punks and NodeMonkes.
-  // BYTEBEASTS and CryptoPunks [Base] use OpenSea as their authoritative collection source.
+  // BYTEBEASTS, Base Oddities, Pixel Nomads, and CryptoPunks [Base] use OpenSea as their authoritative collection source.
   let alchemyNft = null;
   let alchemyError = null;
   const configured = contract === NODEMONKES
