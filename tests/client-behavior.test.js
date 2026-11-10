@@ -143,6 +143,8 @@ test("wallet connector only exposes WalletConnect on Base and Polygon with live-
   assert.match(app, /WagmiAdapter/);
   assert.match(app, /const appUrl = window\.location\.origin/);
   assert.match(html, /appKit\.open\(\{view:"ConnectingWalletConnect"\}\)/);
+  assert.match(html, /data-collection\]"\)\.forEach\(b=>b\.addEventListener\("click",async/);
+  assert.match(html, /await ensureWalletForContract\(COLLECTIONS\[selected\]\.contract\)/);
 });
 test("English live market dashboard shows the five requested metrics for every collection", () => {
   for (const label of ["Floor Price", "24h Volume", "Total Volume", "Market Cap*", "Holders"]) assert.ok(html.includes(`<th>${label}</th>`));
