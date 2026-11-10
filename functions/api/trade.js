@@ -1,6 +1,7 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
+const NEON_RELICS = "0x64d94e792076da8df31d06e15e7ab4e152999c06";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
 const BASE_ODDITIES = "0x8b245812b0755b7e0259395beca3e591734660fb";
 const PIXEL_NOMADS = "0x13ef1ea93602873d11a92bc434c8ed580487b2dc";
@@ -16,6 +17,7 @@ const COLLECTIONS = new Map([
   [PUNKS, { network: BASE_NETWORK, slug: "punks-base-1" }],
   [NODEMONKES, { network: BASE_NETWORK, slug: "nodemonkes" }],
   [BYTEBEASTS, { network: BASE_NETWORK, slug: "bytebeasts-base" }],
+  [NEON_RELICS, { network: BASE_NETWORK, slug: "neon-relics-567749795" }],
   [BASE_ODDITIES, { network: BASE_NETWORK, slug: "base-oddities" }],
   [PIXEL_NOMADS, { network: BASE_NETWORK, slug: "pixel-nomads-783494962" }],
   [CRYPTOPUNKS_BASE, { network: BASE_NETWORK, slug: "cryptopunks-base" }],

@@ -2,12 +2,13 @@ const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
+const NEON_RELICS = "0x64d94e792076da8df31d06e15e7ab4e152999c06";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
 const BASE_ODDITIES = "0x8b245812b0755b7e0259395beca3e591734660fb";
 const PIXEL_NOMADS = "0x13ef1ea93602873d11a92bc434c8ed580487b2dc";
-const COLLECTION_SLUGS = new Map([[PUNKS,"punks-base-1"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[BASE_ODDITIES,"base-oddities"],[PIXEL_NOMADS,"pixel-nomads-783494962"],[CRYPTOPUNKS_BASE,"cryptopunks-base"]]);
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
-const OPENSEA_PRIMARY = new Set([BYTEBEASTS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE]);
+const COLLECTION_SLUGS = new Map([[PUNKS,"punks-base-1"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[NEON_RELICS,"neon-relics-567749795"],[BASE_ODDITIES,"base-oddities"],[PIXEL_NOMADS,"pixel-nomads-783494962"],[CRYPTOPUNKS_BASE,"cryptopunks-base"]]);
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
+const OPENSEA_PRIMARY = new Set([BYTEBEASTS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE]);
 
 const json = (data, status = 200, forceRefresh = false) => {
   const headers = {
@@ -88,6 +89,19 @@ function normalizeAlchemyNft(n, contract) {
       ? (tokenId ? "https://og.rarible.com/token/polygon/" + contract + ":" + encodeURIComponent(tokenId) : "https://og.rarible.com/collection/polygon/" + contract + "/items")
       : (tokenId ? "https://og.rarible.com/token/base/" + contract + ":" + encodeURIComponent(tokenId) : "https://og.rarible.com/collection/base/" + contract + "/items")
   };
+}
+
+async function fetchBaseAlchemyPage({contract, limit, cursor, key, forceRefresh}) {
+  const endpoint = new URL("https://base-mainnet.g.alchemy.com/nft/v3/" + encodeURIComponent(key) + "/getNFTsForContract");
+  endpoint.searchParams.set("contractAddress", contract);
+  endpoint.searchParams.set("withMetadata", "true");
+  endpoint.searchParams.set("limit", String(limit));
+  if (cursor) endpoint.searchParams.set("pageKey", cursor);
+  const response = await fetch(endpoint, {headers:{"accept":"application/json", ...(forceRefresh ? {"cache-control":"no-cache","pragma":"no-cache"} : {})}, ...(forceRefresh ? {cache:"no-store"} : {})});
+  if (!response.ok) return {ok:false,status:response.status};
+  const data = await response.json();
+  const nfts = Array.isArray(data.nfts) ? await Promise.all(data.nfts.map(async nft => normalizeAlchemyNft(await resolveAlchemyMetadata(nft, forceRefresh), contract))) : [];
+  return {ok:true,nfts,next:typeof data.pageKey === "string" ? data.pageKey : null};
 }
 
 async function fetchPolygonAlchemyPage({contract, limit, cursor, key, forceRefresh}) {
@@ -430,11 +444,11 @@ export async function onRequestGet({request, env}) {
       else {
         const data = await response.json();
         const nfts = Array.isArray(data.nfts) ? await Promise.all(data.nfts.map(async n => {
-          const latest = contract === BYTEBEASTS && forceRefresh
+          const latest = (contract === BYTEBEASTS || contract === NEON_RELICS) && forceRefresh
             ? await refreshAlchemyTokenMetadata(n, key, contract)
             : n;
           return normalizeAlchemyNft(
-            await resolveAlchemyMetadata(latest, contract === BYTEBEASTS && forceRefresh),
+            await resolveAlchemyMetadata(latest, (contract === BYTEBEASTS || contract === NEON_RELICS) && forceRefresh),
             contract
           );
         })) : [];
@@ -447,7 +461,7 @@ export async function onRequestGet({request, env}) {
             fetchedAt:new Date().toISOString()
           }, 200, forceRefresh);
         }
-        if (nfts.length && (contract === NODEMONKES || contract === BYTEBEASTS) && openSeaKey) {
+        if (nfts.length && (contract === NODEMONKES || contract === BYTEBEASTS || contract === NEON_RELICS) && openSeaKey) {
           const fallback = await fetchOpenSea({contract, limit, cursor:null, apiKey:openSeaKey, forceRefresh});
           if (fallback.ok && fallback.nfts.length) {
             const merged = mergeArtworkFromOpenSea(nfts, fallback.nfts);

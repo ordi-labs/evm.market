@@ -62,12 +62,12 @@ test("the complete local index counts each NFT once for each trait value", () =>
   assert.equal(result[0].values.find(x=>x.value==="Male").count,1);
 });
 test("a positive active listing is kept even if its price could not be parsed", () => {
-  assert.match(html, /if\(!polygon&&listingFilter\.value==="listed"&&\(!listing\|\|listing===false\|\|listing==="loading"\|\|listing\.error\)\)return false/);
+  assert.match(html, /if\(!external&&listingFilter\.value==="listed"&&\(!listing\|\|listing===false\|\|listing==="loading"\|\|listing\.error\)\)return false/);
   assert.doesNotMatch(html, /const price=listingPrice\(order\);if\(!price\)continue/);
 });
 test("the first NFT-card render resolves supported listing state while labelling Polygon Rarible separately", () => {
-  assert.match(html, /if\(!polygon\)loadLiveListing\(n,contract\);const listing=activeListing\(n\);price\.textContent=polygon\?/);
-  assert.match(html, /Rarible marketplace · listings external/);
+  assert.match(html, /if\(!external\)loadLiveListing\(n,contract\);const listing=activeListing\(n\);price\.textContent=external\?/);
+  assert.match(html, /Live Rarible data · listings external/);
 });
 
 test("owned view is exposed as a wallet-scoped mode for all configured collections", () => {
@@ -82,7 +82,11 @@ test("CryptoPunks [Base] and NodeMonkes Polygon are selectable with verified con
   assert.match(html, /name:"CryptoPunks \[Base\]",contract:"0x18d91b5597f1a7227d2960945c9a1417f0ff721d",slug:"cryptopunks-base",network:"base"/);
   assert.match(html, /data-collection="nodemonkespolygon"/);
   assert.match(html, /name:"NodeMonkes \[Polygon\]",contract:"0xdf264d5da8dfaa41fa2e634afead44935af2ad66",slug:"",network:"polygon"/);
-  assert.match(html, /Seven collections/);
+  assert.match(html, /Eight collections/);
+  assert.match(html, /data-collection="neonrelics"/);
+  assert.match(html, /name:"Neon Relics",contract:"0x64d94e792076da8df31d06e15e7ab4e152999c06",slug:"",network:"base"/);
+  assert.match(html, /usesExternalMarketplace/);
+  assert.match(html, /https:\/\/rarible.com\/collection\/base/);
   assert.match(html, /data-collection="baseoddities"/);
   assert.match(html, /data-collection="pixelnomads"/);
   assert.match(html, /name:"Base Oddities",contract:"0x8b245812b0755b7e0259395beca3e591734660fb",slug:"base-oddities",network:"base"/);
