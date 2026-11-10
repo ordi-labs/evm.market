@@ -152,8 +152,8 @@ function raribleListingPrice(order){
  const take=order?.take||{},assetType=take.assetType||take.asset_type||{};let currency="";
  if(String(assetType.assetClass||assetType.asset_class||"").toUpperCase()==="ETH")currency="POL";
  else if(String(assetType.contract||assetType.address||"").toLowerCase()==="0x7ceb23fd6bc0add59e62ac25578270cff1b9f619")currency="WETH";
- const raw=String(take.value??"");if(!currency||!/^[0-9]+$/.test(raw))return null;
- const value=Number(BigInt(raw))/1e18;return Number.isFinite(value)?{value,currency}:null;
+ const raw=String(take.value??"");if(!currency||!/^(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/.test(raw))return null;
+ const value=raw.includes(".")?Number(raw):Number(BigInt(raw))/1e18;return Number.isFinite(value)&&value>0?{value,currency}:null;
 }
 let marketDashboardLoading=false;
 function displayStat(metric){if(!metric||!Number.isFinite(Number(metric.value))||!metric.currency)return "Unavailable";return Number(metric.value).toLocaleString(undefined,{maximumSignificantDigits:5})+" "+metric.currency}
@@ -181,7 +181,7 @@ function initializeMarketDashboard(){
  refreshMarketDashboard();
 }
 function syncCollectionListingState(contract,state){if(COLLECTIONS[selected]?.contract!==contract)return;for(const nft of items){const id=idOf(nft),key=listingKey(contract,id),found=state.byId.get(id);if(found)liveListings.set(key,found);else if(state.complete)liveListings.set(key,false);else if(state.error)liveListings.set(key,{error:state.error});else liveListings.set(key,"loading")}mergeListedItemsForFilter(contract,state);render()}
-function loadLiveListing(n,contract){const id=idOf(n),key=listingKey(contract,id),state=collectionListings.get(contract);if(!id||liveListings.has(key))return;if(state?.byId.has(id)){liveListings.set(key,state.byId.get(id));return}if(state?.complete){liveListings.set(key,false);return}if(state?.error){liveListings.set(key,{error:state.error});return}liveListings.set(key,"loading");(async()=>{try{const response=await getListingResponse("/api/trade?action=listings&contract="+encodeURIComponent(contract)+"&tokenId="+encodeURIComponent(id));const data=await response.json().catch(()=>({}));const orders=Array.isArray(data.orders)?data.orders:Array.isArray(data.listings)?data.listings:[];const order=orders.find(x=>String(x?.status||"ACTIVE").toUpperCase()==="ACTIVE"&&(x?.order_hash||x?.orderHash));const offered=order?.asset||order?.nft||order?.item,protocolOffer=order?.protocol_data?.parameters?.offer||order?.protocolData?.parameters?.offer||[],nftOffer=protocolOffer.find(x=>Number(x?.itemType)===2),listedContract=String(offered?.contract||offered?.contract_address||nftOffer?.token||"").toLowerCase(),listedId=String(offered?.identifier??offered?.token_id??offered?.tokenId??nftOffer?.identifierOrCriteria??nftOffer?.identifier_or_criteria??"");liveListings.set(key,order&&listedContract===contract.toLowerCase()&&listedId===String(id)?{order,price:listingPrice(order)}:false)}catch(error){liveListings.set(key,{error:String(error?.message||"OpenSea listing unavailable")})}if(COLLECTIONS[selected]?.contract===contract)render()})()}
+function loadLiveListing(n,contract){const id=idOf(n),key=listingKey(contract,id),state=collectionListings.get(contract);if(!id||liveListings.has(key))return;if(state?.byId.has(id)){liveListings.set(key,state.byId.get(id));return}if(state?.complete){liveListings.set(key,false);return}if(state?.error){liveListings.set(key,{error:state.error});return}liveListings.set(key,"loading");(async()=>{try{const response=await getListingResponse("/api/trade?action=listings&contract="+encodeURIComponent(contract)+"&tokenId="+encodeURIComponent(id));const data=await response.json().catch(()=>({}));const orders=Array.isArray(data.orders)?data.orders:Array.isArray(data.listings)?data.listings:[];const activeOrders=orders.filter(x=>String(x?.status||"ACTIVE").toUpperCase()==="ACTIVE"&&(x?.order_hash||x?.orderHash));const pricedOrders=activeOrders.map(order=>({order,price:listingPrice(order)||raribleListingPrice(order)})).filter(entry=>entry.price).sort((a,b)=>a.price.value-b.price.value);const order=pricedOrders[0]?.order||activeOrders[0];const offered=order?.asset||order?.nft||order?.item,protocolOffer=order?.protocol_data?.parameters?.offer||order?.protocolData?.parameters?.offer||[],nftOffer=protocolOffer.find(x=>Number(x?.itemType)===2),listedContract=String(offered?.contract||offered?.contract_address||nftOffer?.token||"").toLowerCase(),listedId=String(offered?.identifier??offered?.token_id??offered?.tokenId??nftOffer?.identifierOrCriteria??nftOffer?.identifier_or_criteria??"");liveListings.set(key,order&&listedContract===contract.toLowerCase()&&listedId===String(id)?{order,price:listingPrice(order)||raribleListingPrice(order)}:false)}catch(error){liveListings.set(key,{error:String(error?.message||(isPolygonCollection(contract)?"Rarible listing unavailable":"OpenSea listing unavailable"))})}if(COLLECTIONS[selected]?.contract===contract)render()})()}
 async function loadCollectionListings(contract,refresh=false){
  if(refresh){collectionListings.delete(contract);collectionListingLoads.delete(contract)}
  const current=collectionListings.get(contract);
@@ -378,8 +378,8 @@ function render(){
  for(const n of visibleList){const id=idOf(n),name=nameOf(n),img=safeHttpsUrl(imageOf(n)),url=safeMarketplaceUrl(tradeUrl(n),tradeUrl(n)),contract=cfg.contract,card=document.createElement("article");card.className="card";const art=document.createElement("a");art.className="art";art.href=url;art.target="_blank";art.rel="noopener noreferrer";art.setAttribute("aria-label","View "+name+" on marketplace");
   if(img){const im=document.createElement("img");im.loading="lazy";im.alt=name;im.src=img;im.onerror=async()=>{im.onerror=null;const fallback=await openSeaArtwork(contract,id);if(fallback&&safeHttpsUrl(fallback))im.src=safeHttpsUrl(fallback);else{im.remove();const ph=document.createElement("span");ph.className="placeholder";ph.textContent="◇";art.prepend(ph)}};art.append(im)}else{const placeholder=document.createElement("span");placeholder.className="placeholder";placeholder.textContent="◇";art.append(placeholder);if(id)(async()=>{let source=await detailArtwork(contract,id);if(!source&&!polygon)source=await openSeaArtwork(contract,id);if(!source||!art.isConnected)return;const image=document.createElement("img");image.loading="lazy";image.alt=name;image.src=source;placeholder.remove();art.prepend(image)})()}
   const tag=document.createElement("span");tag.className="token-tag";tag.textContent="#"+id;art.append(tag);const body=document.createElement("div"),title=document.createElement("div"),sub=document.createElement("div"),foot=document.createElement("div"),price=document.createElement("span"),action=document.createElement("a");body.className="cardbody";title.className="cardtitle";title.textContent=name;sub.className="sub";sub.textContent=cfg.name;foot.className="cardfoot";price.className="price";action.className="trade";action.href=url;action.target="_blank";action.rel="noopener noreferrer";action.textContent=polygon?"View on Rarible ↗":"View / trade ↗";
-  if(!polygon)loadLiveListing(n,contract);const listing=activeListing(n);price.textContent=polygon?"Live Polygon data · Rarible marketplace · listings external":listing?.price?listing.price.value.toLocaleString(undefined,{maximumSignificantDigits:8})+" "+listing.price.currency:listing?.order?"Listed · price unavailable":listing===false?"Not listed":listing?.error?"OpenSea error":listing===null?"OpenSea unavailable":"Checking price…";foot.append(price,action);
-  const actions=document.createElement("div");actions.className="trade-actions";fillTradeActions(actions,contract,id,url);const orderbookStatus=document.createElement("div");orderbookStatus.className="sub";orderbookStatus.style.marginTop="8px";orderbookStatus.textContent=polygon?"Rarible collection · Seaport Polygon actions":"Checking OpenSea listing…";if(!polygon)orderbookStatus.textContent=listing?.order?"Listed on OpenSea · live":listing===false?"Not listed on OpenSea":listing?.error?listing.error:listing===null?"OpenSea listing unavailable":"Checking OpenSea listing…";
+  loadLiveListing(n,contract);const listing=activeListing(n);price.textContent=listing?.price?listing.price.value.toLocaleString(undefined,{maximumSignificantDigits:8})+" "+listing.price.currency:listing?.order?(polygon?"Listed on Rarible · price unavailable":"Listed · price unavailable"):listing===false?(polygon?"Not listed on Rarible":"Not listed"):listing?.error?(polygon?"Rarible error":"OpenSea error"):listing===null||listing==="loading"?(polygon?"Loading POL price…":"Checking price…"):"Price unavailable";foot.append(price,action);
+  const actions=document.createElement("div");actions.className="trade-actions";fillTradeActions(actions,contract,id,url);const orderbookStatus=document.createElement("div");orderbookStatus.className="sub";orderbookStatus.style.marginTop="8px";orderbookStatus.textContent=polygon?(listing?.order?"Rarible listing · live":listing===false?"Not listed on Rarible":listing?.error?listing.error:"Checking Rarible listing…"):"Checking OpenSea listing…";if(!polygon)orderbookStatus.textContent=listing?.order?"Listed on OpenSea · live":listing===false?"Not listed on OpenSea":listing?.error?listing.error:listing===null?"OpenSea listing unavailable":"Checking OpenSea listing…";
   const details=document.createElement("button");details.className="details-btn";details.textContent="NFT details ↓";details.addEventListener("click",()=>showDetails(id));body.append(title,sub,foot,actions,orderbookStatus,details);card.append(art,body);$("grid").append(card)
  }
 }
@@ -468,12 +468,12 @@ async function chooseWalletProvider(){
  const wcButton=document.createElement("button");wcButton.type="button";wcButton.className="wallet-option";
  const wcIcon=document.createElement("span");wcIcon.className="wallet-option-icon";wcIcon.textContent="↗";
  const wcName=document.createElement("span");wcName.className="wallet-option-name";wcName.textContent="WalletConnect · Reown";
- const wcSub=document.createElement("small");wcSub.textContent="Connect securely with QR code or a compatible wallet";
+ const wcSub=document.createElement("small");wcSub.textContent="Scan the WalletConnect QR code with your wallet";
  const wcCopy=document.createElement("span");wcCopy.className="wallet-option-copy";wcCopy.append(wcName,wcSub);
  wcButton.append(wcIcon,wcCopy);
  wcButton.addEventListener("click",()=>connectWalletConnect());
  list.append(wcButton);
- walletChooserStatus("Choose a compatible mobile or desktop wallet using WalletConnect.");
+ walletChooserStatus("Scan the WalletConnect QR code to connect.");
 }
 // Reown / WalletConnect Project ID is public client configuration, not a private key.
 const REOWN_PROJECT_ID="f981fcdc036a0a273c655b90030221e4";
@@ -524,11 +524,11 @@ async function connectWalletConnect(){
  closeWalletChooser();
  $("signatureGate").hidden=true;
  walletChooserStatus("Opening Reown AppKit…");
- setNotice("<strong>Opening Reown AppKit…</strong> Connect a compatible wallet in the secure modal.");
+  setNotice("<strong>Opening WalletConnect QR…</strong> Scan the code with your wallet.");
  try{
   const appKit=window.__reownAppKit;
   if(!appKit)throw new Error("Reown AppKit is still loading. Please try again.");
-  await appKit.open();
+  await appKit.open({view:"ConnectingWalletConnect"});
   setNotice("<strong>WalletConnect is open.</strong> Approve the connection in your wallet, then return to this tab.");
   walletConnectProvider=await waitForReownProvider(appKit);
   $("signatureGate").hidden=true;

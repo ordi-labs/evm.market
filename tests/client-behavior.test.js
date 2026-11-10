@@ -65,9 +65,11 @@ test("a positive active listing is kept even if its price could not be parsed", 
   assert.match(html, /if\(!polygon&&listingFilter\.value==="listed"&&\(!listing\|\|listing===false\|\|listing==="loading"\|\|listing\.error\)\)return false/);
   assert.doesNotMatch(html, /const price=listingPrice\(order\);if\(!price\)continue/);
 });
-test("the first NFT-card render resolves supported listing state while labelling Polygon Rarible separately", () => {
-  assert.match(html, /if\(!polygon\)loadLiveListing\(n,contract\);const listing=activeListing\(n\);price\.textContent=polygon\?/);
-  assert.match(html, /Rarible marketplace · listings external/);
+test("NFT cards show live Rarible prices for Polygon instead of a generic marketplace label", () => {
+  assert.match(html, /loadLiveListing\(n,contract\);const listing=activeListing\(n\);price\.textContent=listing\?\.price\?/);
+  assert.match(html, /raribleListingPrice\(order\)/);
+  assert.match(html, /Loading POL price…/);
+  assert.doesNotMatch(html, /Live Polygon data · Rarible marketplace · listings external/);
 });
 
 test("owned view is exposed as a wallet-scoped mode for all configured collections", () => {
@@ -136,7 +138,10 @@ test("wallet connector only exposes WalletConnect on Base and Polygon with live-
   const app = await readFile(new URL("../src/main.jsx", import.meta.url), "utf8");
   assert.match(app, /networks: \[base, polygon\]/);
   assert.match(app, /enableInjected: false/);
+  assert.match(app, /allWallets: 'HIDE'/);
+  assert.match(app, /allWallets: false/);
   assert.match(app, /const appUrl = window\.location\.origin/);
+  assert.match(html, /appKit\.open\(\{view:"ConnectingWalletConnect"\}\)/);
 });
 test("English live market dashboard shows the five requested metrics for every collection", () => {
   for (const label of ["Floor Price", "24h Volume", "Total Volume", "Market Cap*", "Holders"]) assert.ok(html.includes(`<th>${label}</th>`));

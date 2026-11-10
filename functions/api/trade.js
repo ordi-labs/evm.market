@@ -108,6 +108,53 @@ async function raribleCollectionListings(env, contract, limit, next) {
   return json({ listings, next: data.continuation || null, source: "rarible" });
 }
 
+async function raribleItemListings(env, contract, tokenId) {
+  const apiKey = raribleApiKey(env);
+  if (!apiKey) return json({ error: "Rarible API is not configured on the server." }, 503);
+  const params = new URLSearchParams({ itemId: "POLYGON:" + contract + ":" + tokenId, size: "20", status: "ACTIVE" });
+  let response;
+  try { response = await fetch(RARIBLE_API + "/orders/sell/byItem?" + params, { headers: { accept: "application/json", "x-api-key": apiKey } }); }
+  catch { return json({ error: "Rarible NFT listings request failed." }, 502); }
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { return json({ error: "Rarible returned invalid NFT listing data." }, 502); }
+  if (!response.ok) {
+    const retryAfter = response.headers.get("retry-after");
+    return json({ error: "Rarible NFT listings request failed.", providerStatus: response.status, retryAfter, details: data?.errors || data?.message || null }, response.status === 429 ? 429 : 502, response.status === 429 && retryAfter ? { "retry-after": retryAfter } : {});
+  }
+  const source = Array.isArray(data.orders) ? data.orders : Array.isArray(data) ? data : [];
+  const listings = source.map(order => raribleOrderToListing(order, contract)).filter(order => order && order.asset.identifier === tokenId);
+  return json({ orders: listings, listings, source: "rarible" });
+}
+
+function latestRaribleFloorValue(payload) {
+  const collections = [payload, payload?.data, payload?.points, payload?.history, payload?.floorPrice, payload?.floor_price, payload?.values, payload?.result];
+  const records = collections.find(Array.isArray) || [payload?.data && typeof payload.data === "object" ? payload.data : payload];
+  const valid = records.map(record => {
+    const rawValue = typeof record === "number" || typeof record === "string" ? record : record?.value ?? record?.floorPrice ?? record?.floor_price ?? record?.price ?? record?.amount ?? record?.y;
+    const value = Number(rawValue);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    const time = Date.parse(String(record?.date ?? record?.timestamp ?? record?.time ?? ""));
+    return { value, time: Number.isFinite(time) ? time : null };
+  }).filter(Boolean);
+  if (!valid.length) return null;
+  const dated = valid.filter(point => point.time !== null).sort((a, b) => a.time - b.time);
+  return (dated.length ? dated[dated.length - 1] : valid[valid.length - 1]).value;
+}
+
+async function raribleCollectionFloor(env, contract) {
+  const apiKey = raribleApiKey(env);
+  if (!apiKey) return null;
+  const collectionId = "POLYGON:" + contract;
+  const params = new URLSearchParams({ currency: "POL" });
+  try {
+    const response = await fetch(RARIBLE_API + "/data/collections/" + encodeURIComponent(collectionId) + "/floorPrice?" + params, { headers: { accept: "application/json", "x-api-key": apiKey } });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return latestRaribleFloorValue(data);
+  } catch { return null; }
+}
+
 function addUtcMonths(date, months) {
   const result = new Date(date.getTime());
   const day = result.getUTCDate();
@@ -364,19 +411,30 @@ export async function onRequest({ request, env }) {
     try { data = raw ? JSON.parse(raw) : {}; } catch { return json({ error: "OpenSea returned invalid statistics data." }, 502); }
     if (!response.ok) return json({ error: "OpenSea statistics request failed.", providerStatus: response.status, details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502);
     const total = data.total || {}, day = (Array.isArray(data.intervals) ? data.intervals : []).find(interval => interval.interval === "one_day") || {};
-    const floorValue = Number(total.floor_price), totalSupply = 10000;
+    let floorValue = total.floor_price == null ? NaN : Number(total.floor_price), floorCurrency = total.floor_price_symbol ? String(total.floor_price_symbol) : "";
+    const totalSupply = 10000;
     const statsCurrency = value => {
       const currency = String(value || "").trim();
       return contract === NODEMONKES_POLYGON && ["ETH", "MATIC", "POL"].includes(currency.toUpperCase()) ? "POL" : currency;
     };
+    let source = "opensea";
+    if (contract === NODEMONKES_POLYGON && (!Number.isFinite(floorValue) || !floorCurrency)) {
+      const raribleFloor = await raribleCollectionFloor(env, contract);
+      if (raribleFloor !== null) {
+        floorValue = raribleFloor;
+        floorCurrency = "POL";
+        source = "opensea+rarible-floor";
+      }
+    }
+    const normalizedFloorCurrency = statsCurrency(floorCurrency);
     return json({
-      source: "opensea", updatedAt: new Date().toISOString(),
-      floorPrice: Number.isFinite(floorValue) && total.floor_price_symbol ? { value: floorValue, currency: statsCurrency(total.floor_price_symbol) } : null,
+      source, updatedAt: new Date().toISOString(),
+      floorPrice: Number.isFinite(floorValue) && normalizedFloorCurrency ? { value: floorValue, currency: normalizedFloorCurrency } : null,
       volume24h: Number.isFinite(Number(day.volume)) && day.volume_symbol ? { value: Number(day.volume), currency: statsCurrency(day.volume_symbol) } : null,
       totalVolume: Number.isFinite(Number(total.volume)) && total.volume_symbol ? { value: Number(total.volume), currency: statsCurrency(total.volume_symbol) } : null,
       holders: Number.isFinite(Number(total.num_owners)) ? Number(total.num_owners) : null,
       totalSupply,
-      marketCap: Number.isFinite(floorValue) && total.floor_price_symbol ? { value: floorValue * totalSupply, currency: statsCurrency(total.floor_price_symbol), estimated: true } : null
+      marketCap: Number.isFinite(floorValue) && normalizedFloorCurrency ? { value: floorValue * totalSupply, currency: normalizedFloorCurrency, estimated: true } : null
     });
   }
   if (request.method === "GET" && action === "collection-listings") {
@@ -485,6 +543,7 @@ export async function onRequest({ request, env }) {
 
   if (request.method === "GET") {
     if (action !== "listings" && action !== "offers") return json({ error: "Unsupported read action." }, 400);
+    if (action === "listings" && asset.network.chain === "polygon") return raribleItemListings(env, asset.contract, asset.tokenId);
     if (!asset.slug) return json(action === "listings" ? { orders: [], listings: [], info: "No OpenSea collection slug is configured for this Polygon collection; listings are unavailable here." } : { orders: [], offers: [], info: "No OpenSea collection slug is configured for this Polygon collection; offers are unavailable here." });
     const endpoint = "/" + action + "/collection/" + asset.slug + "/nfts/" + encodeURIComponent(asset.tokenId) + "/best";
     const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();

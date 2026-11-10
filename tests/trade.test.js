@@ -315,6 +315,29 @@ test("proxies active NodeMonkes Polygon listings through Rarible", async () => {
   }
 });
 
+test("serves active NodeMonkes Polygon item listings from Rarible with POL prices", async t => {
+  const originalFetch = globalThis.fetch; let requested;
+  globalThis.fetch = async url => {
+    requested = new URL(String(url));
+    return new Response(JSON.stringify({orders: [{
+      id: "rarible-item-order-7", status: "ACTIVE",
+      make: {assetType: {assetClass: "ERC721", contract: POLYGON_CONTRACT, tokenId: "7"}, value: "1"},
+      take: {assetType: {assetClass: "ETH"}, value: "150000000000000000"}
+    }]}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequest({request: request("listings", undefined, {method: "GET", contract: POLYGON_CONTRACT, tokenId: "7"}), env: {RARIBLE_API_KEY: "rarible-test-key"}});
+  assert.equal(response.status, 200);
+  assert.equal(requested.pathname, "/v0.1/orders/sell/byItem");
+  assert.equal(requested.searchParams.get("itemId"), "POLYGON:" + POLYGON_CONTRACT + ":7");
+  assert.equal(requested.searchParams.get("status"), "ACTIVE");
+  const data = await response.json();
+  assert.equal(data.source, "rarible");
+  assert.equal(data.orders[0].order_hash, "rarible-item-order-7");
+  assert.deepEqual(data.orders[0].asset, {contract: POLYGON_CONTRACT, identifier: "7"});
+  assert.equal(data.orders[0].take.value, "150000000000000000");
+});
+
 test("validates collection listing contract and page limit before contacting OpenSea", async () => {
   const invalidContract = await onRequest({
     request: new Request("https://market.test/api/trade?action=collection-listings&contract=0x1111111111111111111111111111111111111111"),
@@ -710,12 +733,12 @@ test("rejects Polygon fulfillment for a Base-chain order and requests Polygon-na
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test("does not invent an OpenSea collection slug for Polygon NodeMonkes reads", async () => {
+test("does not invent an OpenSea collection slug for Polygon NodeMonkes offers", async () => {
   let called = false;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => { called = true; throw new Error("must not fetch"); };
   try {
-    for (const action of ["listings", "offers"]) {
+    for (const action of ["offers"]) {
       const response = await onRequest({ request: request(action, undefined, { method: "GET", contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
       assert.equal(response.status, 200);
       const data = await response.json();
@@ -803,4 +826,31 @@ test("discovers Polygon collection by NFT contract and uses OpenSea stats", asyn
   assert.deepEqual(data.totalVolume, {value: 99.5, currency: "POL"});
   assert.equal(data.holders, 125);
   assert.deepEqual(data.marketCap, {value: 1500, currency: "POL", estimated: true});
+});
+
+test("uses Rarible Polygon floor history when OpenSea has no floor and estimates market cap in POL", async t => {
+  const originalFetch = globalThis.fetch; const requested = [];
+  globalThis.fetch = async url => {
+    const parsed = new URL(String(url)); requested.push(parsed);
+    if (parsed.pathname === "/api/v2/chain/polygon/contract/" + POLYGON_CONTRACT + "/nfts") {
+      return new Response(JSON.stringify({nfts: [{collection: "nodemonkes-polygon"}]}), {status: 200});
+    }
+    if (parsed.pathname === "/api/v2/collections/nodemonkes-polygon/stats") {
+      return new Response(JSON.stringify({total: {volume: 99.5, volume_symbol: "POL", num_owners: 125}, intervals: []}), {status: 200});
+    }
+    assert.equal(parsed.pathname, "/v0.1/data/collections/POLYGON%3A" + POLYGON_CONTRACT + "/floorPrice");
+    assert.equal(parsed.searchParams.get("currency"), "POL");
+    return new Response(JSON.stringify({data: [
+      {date: "2026-11-09T00:00:00Z", value: "0.15"},
+      {date: "2026-11-10T00:00:00Z", value: "0.2"}
+    ]}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequest({request: request("collection-stats", undefined, {method: "GET", contract: POLYGON_CONTRACT}), env: {OPENSEA_API_KEY: "test-key", RARIBLE_API_KEY: "rarible-test-key"}});
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.source, "opensea+rarible-floor");
+  assert.deepEqual(data.floorPrice, {value: 0.2, currency: "POL"});
+  assert.deepEqual(data.marketCap, {value: 2000, currency: "POL", estimated: true});
+  assert.equal(requested.length, 3);
 });

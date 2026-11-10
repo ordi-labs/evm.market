@@ -21,10 +21,12 @@ const appKit = createAppKit({
   defaultNetwork: base,
   projectId,
   metadata,
+  allWallets: 'HIDE',
   // Keep wallet discovery consistent with the explicit WalletConnect-only flow.
   enableInjected: false,
   features: {
     analytics: true,
+    allWallets: false,
     emailCapture: false,
     socials: false,
     swaps: false,
