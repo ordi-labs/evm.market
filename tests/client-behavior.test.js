@@ -219,6 +219,8 @@ test("Reown exposes wallet-directory, injected and EIP-6963 EVM connectors only 
   assert.match(html, /openWalletManager/);
   assert.match(html, /view:"ProfileWallets"/);
   assert.match(html, /id="manageWallets"/);
+  assert.match(html, /getAccount\?\.\("eip155"\)/);
+  assert.doesNotMatch(html, /getConnections\("eip155"\)/);
 });
 test("English live market dashboard shows the five requested metrics for every collection", () => {
   for (const label of ["Floor Price", "24h Volume", "Total Volume", "Market Cap*", "Holders"]) assert.ok(html.includes(`<th>${label}</th>`));
