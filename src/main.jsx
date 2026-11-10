@@ -3,11 +3,11 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { createAppKit } from '@reown/appkit/react'
 import { EthersAdapter } from '@reown/appkit-adapter-ethers'
-import { base } from '@reown/appkit/networks'
+import { base, polygon } from '@reown/appkit/networks'
 import { verifyMessage } from 'ethers'
 
 const projectId = 'f981fcdc036a0a273c655b90030221e4'
-const appUrl = 'https://evm-market-premium.pages.dev'
+const appUrl = window.location.origin
 const metadata = {
   name: 'evm.market',
   description: 'Verified NFT marketplace for Base',
@@ -17,12 +17,12 @@ const metadata = {
 
 const appKit = createAppKit({
   adapters: [new EthersAdapter()],
-  networks: [base],
+  networks: [base, polygon],
+  defaultNetwork: base,
   projectId,
   metadata,
-  // Show browser extension wallets (MetaMask, Rabby, Coinbase Wallet, etc.)
-  // alongside WalletConnect in the AppKit modal.
-  enableInjected: true,
+  // Keep wallet discovery consistent with the explicit WalletConnect-only flow.
+  enableInjected: false,
   features: {
     analytics: true,
     emailCapture: false,

@@ -132,3 +132,16 @@ test("enables owner listing controls for Base collections and excludes NodeMonke
   assert.match(html, /Unlist my Seaport listing/);
   assert.match(html, /owner===true&&supportsListingActions\(contract\)/);
 });
+test("wallet connector only exposes WalletConnect on Base and Polygon with live-domain metadata", async () => {
+  const app = await readFile(new URL("../src/main.jsx", import.meta.url), "utf8");
+  assert.match(app, /networks: \[base, polygon\]/);
+  assert.match(app, /enableInjected: false/);
+  assert.match(app, /const appUrl = window\.location\.origin/);
+});
+test("selected collections expose a live listings table including Rarible Polygon data", () => {
+  assert.match(html, /id="marketTableBody"/);
+  assert.match(html, /function renderMarketTable\(contract\)/);
+  assert.match(html, /loadCollectionListings\(COLLECTIONS\[selected\]\.contract\)/);
+  assert.match(html, /function raribleListingPrice\(order\)/);
+  assert.match(html, /listing\.order\?\.marketplace==="rarible"\?"Rarible"/);
+});

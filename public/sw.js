@@ -1,5 +1,5 @@
-const CACHE_NAME = "evm-market-shell-v12-neon-relics-20261110";
-const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest?v=market-20261110-neon-relics", "/icons/icon.svg?v=logo-20261106", "/icons/icon-180.png?v=logo-20261106", "/icons/icon-192.png?v=logo-20261106", "/icons/icon-512.png?v=logo-20261106"];
+const CACHE_NAME = "evm-market-shell-v13-live-market-wallet-20261110";
+const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest?v=market-20261110-live-market-wallet", "/icons/icon.svg?v=logo-20261106", "/icons/icon-180.png?v=logo-20261106", "/icons/icon-192.png?v=logo-20261106", "/icons/icon-512.png?v=logo-20261106"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

@@ -11,3 +11,10 @@ Listing prices are parsed from the OpenSea price object's own `decimals` field, 
 ## API references
 
 OpenSea documents collection NFT filtering with a JSON `traits` query and best-listings feeds in [Get NFTs by collection](https://docs.opensea.io/reference/get_nfts_by_collection) and [Get best listings by collection](https://docs.opensea.io/reference/get_best_listings_collection). Alchemy documents owner retrieval, contract filters and `pageKey` pagination for [NFTs by owner](https://www.alchemy.com/docs/reference/nft-api-endpoints/nft-api-endpoints/nft-ownership-endpoints/get-nf-ts-for-owner-v-3) and [NFTs by contract](https://www.alchemy.com/docs/reference/nft-api-endpoints/nft-api-endpoints/nft-contract-endpoints/get-nf-ts-for-contract-v-3). The indexer finds candidates; on-chain `ownerOf` remains the ownership check.
+
+
+## Wallet connection and live marketplace table
+
+The wallet modal uses Reown AppKit with WalletConnect and declares Base and Polygon; injected providers are disabled to match the app's connection flow. The application metadata URL follows the active site origin. `Owned by me` remains wallet- and chain-scoped, and the server verifies candidate owners with `ownerOf` before returning NFTs.
+
+The selected collection has a live listings table. Base feeds use paginated OpenSea collection best listings (Seaport), and NodeMonkes [Polygon] uses its active Rarible collection feed. Prices that cannot be safely interpreted remain explicitly unavailable. Listing creation and cancellation remain disabled for NodeMonkes [Polygon]; the table is read-only and links out to the corresponding marketplace.
