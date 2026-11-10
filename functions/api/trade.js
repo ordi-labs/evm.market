@@ -365,14 +365,18 @@ export async function onRequest({ request, env }) {
     if (!response.ok) return json({ error: "OpenSea statistics request failed.", providerStatus: response.status, details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502);
     const total = data.total || {}, day = (Array.isArray(data.intervals) ? data.intervals : []).find(interval => interval.interval === "one_day") || {};
     const floorValue = Number(total.floor_price), totalSupply = 10000;
+    const statsCurrency = value => {
+      const currency = String(value || "").trim();
+      return contract === NODEMONKES_POLYGON && ["ETH", "MATIC", "POL"].includes(currency.toUpperCase()) ? "POL" : currency;
+    };
     return json({
       source: "opensea", updatedAt: new Date().toISOString(),
-      floorPrice: Number.isFinite(floorValue) && total.floor_price_symbol ? { value: floorValue, currency: total.floor_price_symbol } : null,
-      volume24h: Number.isFinite(Number(day.volume)) && day.volume_symbol ? { value: Number(day.volume), currency: day.volume_symbol } : null,
-      totalVolume: Number.isFinite(Number(total.volume)) && total.volume_symbol ? { value: Number(total.volume), currency: total.volume_symbol } : null,
+      floorPrice: Number.isFinite(floorValue) && total.floor_price_symbol ? { value: floorValue, currency: statsCurrency(total.floor_price_symbol) } : null,
+      volume24h: Number.isFinite(Number(day.volume)) && day.volume_symbol ? { value: Number(day.volume), currency: statsCurrency(day.volume_symbol) } : null,
+      totalVolume: Number.isFinite(Number(total.volume)) && total.volume_symbol ? { value: Number(total.volume), currency: statsCurrency(total.volume_symbol) } : null,
       holders: Number.isFinite(Number(total.num_owners)) ? Number(total.num_owners) : null,
       totalSupply,
-      marketCap: Number.isFinite(floorValue) && total.floor_price_symbol ? { value: floorValue * totalSupply, currency: total.floor_price_symbol, estimated: true } : null
+      marketCap: Number.isFinite(floorValue) && total.floor_price_symbol ? { value: floorValue * totalSupply, currency: statsCurrency(total.floor_price_symbol), estimated: true } : null
     });
   }
   if (request.method === "GET" && action === "collection-listings") {

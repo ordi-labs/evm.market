@@ -784,8 +784,8 @@ test("discovers Polygon collection by NFT contract and uses OpenSea stats", asyn
     }
     assert.equal(parsed.pathname, "/api/v2/collections/nodemonkes-polygon/stats");
     return new Response(JSON.stringify({
-      total: {floor_price: 0.15, floor_price_symbol: "POL", volume: 99.5, volume_symbol: "POL", num_owners: 125},
-      intervals: [{interval: "one_day", volume: 2.5, volume_symbol: "POL", sales: 3}]
+      total: {floor_price: 0.15, floor_price_symbol: "ETH", volume: 99.5, volume_symbol: "ETH", num_owners: 125},
+      intervals: [{interval: "one_day", volume: 2.5, volume_symbol: "ETH", sales: 3}]
     }), {status: 200});
   };
   t.after(() => { globalThis.fetch = originalFetch; });
