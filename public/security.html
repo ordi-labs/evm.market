@@ -24,7 +24,7 @@ a{color:var(--lime)}h1{font-size:clamp(30px,6vw,46px);line-height:1.1;letter-spa
 <ul>
 <li>Connection requests access to the public wallet account you choose.</li>
 <li>The site reads the wallet's current network and performs a read-only ownership check when requested.</li>
-<li>To verify a session, the site asks for a one-time message signature; this is not a blockchain transaction and does not grant token/NFT approvals.</li>
+<li>To verify a session, the site asks for one readable EIP-4361-style message signature bound to this domain, the connected account, Base chain ID 8453, a random nonce and a five-minute expiry. This is not a blockchain transaction and does not grant token/NFT approvals.</li>
 <li>Wallet sign-in may request Base mainnet (chain ID 8453). Polygon market actions require Polygon mainnet (chain ID 137); an action can ask permission to switch the wallet network before any transaction is prepared.</li>
 </ul>
 <h2>Marketplace actions</h2>

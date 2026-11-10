@@ -136,10 +136,11 @@ test("enables owner listing controls for Base collections and excludes NodeMonke
 });
 test("wallet connector only exposes WalletConnect on Base and Polygon with live-domain metadata", async () => {
   const app = await readFile(new URL("../src/main.jsx", import.meta.url), "utf8");
-  assert.match(app, /networks: \[base, polygon\]/);
+  assert.match(app, /const networks = \[base, polygon\]/);
   assert.match(app, /enableInjected: false/);
-  assert.match(app, /allWallets: 'HIDE'/);
-  assert.match(app, /allWallets: false/);
+  assert.match(app, /allWallets: 'ONLY_MOBILE'/);
+  assert.match(app, /connectMethodsOrder: \['wallet'\]/);
+  assert.match(app, /WagmiAdapter/);
   assert.match(app, /const appUrl = window\.location\.origin/);
   assert.match(html, /appKit\.open\(\{view:"ConnectingWalletConnect"\}\)/);
 });
@@ -153,8 +154,11 @@ test("English live market dashboard shows the five requested metrics for every c
 });
 
 
-test("wallet connection requests no personal message signature", () => {
+test("wallet connection requests a readable domain-bound personal message signature", () => {
   assert.match(html, /provider\.request\(\{method:"eth_requestAccounts"\}\)/);
-  assert.doesNotMatch(html, /personal_sign|signWalletChallenge/);
-  assert.match(html, /No message signature or transaction was requested to connect/);
+  assert.match(html, /method:"personal_sign"/);
+  assert.match(html, /Chain ID: 8453/);
+  assert.match(html, /Expiration Time:/);
+  assert.match(html, /window\.__verifyMessage/);
+  assert.match(html, /The site signature was approved/);
 });

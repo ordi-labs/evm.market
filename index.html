@@ -67,7 +67,7 @@
     <div class="copyright">© <span id="year"></span> evm.market</div>
   </div>
 </footer>
-<div id="signatureGate" class="signature-gate" hidden role="dialog" aria-modal="true" aria-labelledby="signatureGateTitle"><section class="signature-gate-panel"><div class="section-kicker">Wallet verification · Base</div><h2 id="signatureGateTitle">Sign in with your wallet</h2><p>To enter evm.market, connect your wallet and sign a one-time proof-of-control message for this browser session.</p><div class="gate-warning"><strong>Message signature only.</strong> This is not a transaction and does not grant token/NFT approvals. Never sign a transaction or share your recovery phrase to access this site.</div><button id="signatureGateContinue" class="primary" type="button">Choose wallet and sign message ↗</button></section></div><div id="walletChooser" class="wallet-chooser" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="walletChooserTitle"><div class="wallet-chooser-panel"><div class="wallet-chooser-head"><h2 id="walletChooserTitle">Connect a wallet</h2><button id="walletChooserClose" type="button" aria-label="Close wallet chooser">Close</button></div><p>Connect with WalletConnect. The site will ask to switch to Base Mainnet, then to sign one verification message. It never asks for a transaction or token approval to sign in; never share your recovery phrase.</p><div id="walletOptions" class="wallet-options"></div><p id="walletChooserStatus" class="wallet-chooser-status" role="status" aria-live="polite"></p></div></div>
+<div id="signatureGate" class="signature-gate" hidden role="dialog" aria-modal="true" aria-labelledby="signatureGateTitle"><section class="signature-gate-panel"><div class="section-kicker">Wallet verification · Base</div><h2 id="signatureGateTitle">Sign in with your wallet</h2><p>To enter evm.market, connect your wallet and approve one readable site-signature message for this browser session.</p><div class="gate-warning"><strong>Message signature only.</strong> The message is bound to this domain, your wallet, Base (8453), a random nonce and a five-minute expiry. It is not a transaction and grants no token/NFT approvals. Never share your recovery phrase.</div><button id="signatureGateContinue" class="primary" type="button">Choose wallet and sign message ↗</button></section></div><div id="walletChooser" class="wallet-chooser" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="walletChooserTitle"><div class="wallet-chooser-panel"><div class="wallet-chooser-head"><h2 id="walletChooserTitle">Connect a wallet</h2><button id="walletChooserClose" type="button" aria-label="Close wallet chooser">Close</button></div><p>Connect securely with WalletConnect on desktop or mobile. The site will ask to switch to Base Mainnet, then your wallet will show a readable signature request. It never asks for a transaction or token approval to sign in.</p><div id="walletOptions" class="wallet-options"></div><p id="walletChooserStatus" class="wallet-chooser-status" role="status" aria-live="polite"></p></div></div>
 <script type="module" src="/src/main.jsx"></script>
 <script type="module">
 import {listingPrice as parseListingPrice} from "/listing-price.js";
@@ -475,9 +475,6 @@ async function chooseWalletProvider(){
  list.append(wcButton);
  walletChooserStatus("Scan the WalletConnect QR code to connect.");
 }
-// Reown / WalletConnect Project ID is public client configuration, not a private key.
-const REOWN_PROJECT_ID="f981fcdc036a0a273c655b90030221e4";
-const APP_URL="https://evm-market-premium.pages.dev";
 let walletConnectProvider=null;
 function waitForReownProvider(appKit,timeoutMs=180000){
  const current=appKit.getWalletProvider?.();
@@ -557,6 +554,23 @@ async function switchToChain(provider,network){
 async function switchToBase(provider){return switchToChain(provider,networkForContract(COLLECTIONS.punks.contract))}
 async function switchToPolygon(provider){return switchToChain(provider,networkForContract(POLYGON_NODEMONKES_CONTRACT))}
 let signatureVerifierPromise=null;
+function createNonce(){const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);return Array.from(bytes,x=>x.toString(16).padStart(2,"0")).join("")}
+function buildSignInMessage(address){const domain=window.location.host,uri=window.location.origin,issuedAt=new Date().toISOString(),expirationTime=new Date(Date.now()+5*60*1000).toISOString(),nonce=createNonce();return{message:`${domain} wants you to sign in with your Ethereum account:\n${address}\n\nSign in to evm.market to verify wallet control.\n\nURI: ${uri}\nVersion: 1\nChain ID: 8453\nNonce: ${nonce}\nIssued At: ${issuedAt}\nExpiration Time: ${expirationTime}`,expirationTime}}
+async function signWalletChallenge(provider){
+ if(!provider||!account)throw new Error("Connect a wallet before signing in.");
+ if(signatureVerifierPromise)return signatureVerifierPromise;
+ signatureVerifierPromise=(async()=>{
+  const challenge=buildSignInMessage(account);
+  walletChooserStatus("Approve the readable sign-in message in your wallet.");
+  const signature=await provider.request({method:"personal_sign",params:[challenge.message,account]});
+  if(typeof signature!=="string"||!/^(0x[0-9a-f]+)$/i.test(signature))throw new Error("The wallet returned an invalid sign-in signature.");
+  const recovered=window.__verifyMessage?.(challenge.message,signature);
+  if(!recovered||recovered.toLowerCase()!==account.toLowerCase())throw new Error("The sign-in signature does not match the connected wallet.");
+  if(Date.parse(challenge.expirationTime)<=Date.now())throw new Error("The sign-in message expired. Please retry.");
+  verifiedAccount=account.toLowerCase();accessVerified=true;return true;
+ })();
+ try{return await signatureVerifierPromise}finally{signatureVerifierPromise=null}
+}
 function connect(provider=null,label="wallet"){
  if(!provider)return chooseWalletProvider();
  if(connectInFlight)return connectInFlight;
@@ -577,16 +591,16 @@ async function connectWalletSession(provider,label){
   }
   walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";ownershipCache.clear();
   $("connect").textContent=account.slice(0,6)+"…"+account.slice(-4);$("disconnect").hidden=false;attachWalletListeners(provider);
-  if(!walletOnBase){accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;setNotice("<strong>"+safe(label)+" connected, but the wallet is not on Base.</strong> "+safe(switchError?.message||"Switch to Base Mainnet (chain ID 8453) to continue.")+" No message signature or transaction was requested.",true);closeWalletChooser();if(ownedByMe)load(true,true);else render();return}
-  accessVerified=true;verifiedAccount=account.toLowerCase();
+  if(!walletOnBase){accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;setNotice("<strong>"+safe(label)+" connected, but the wallet is not on Base.</strong> "+safe(switchError?.message||"Switch to Base Mainnet (chain ID 8453) to continue.")+" No transaction was requested.",true);closeWalletChooser();if(ownedByMe)load(true,true);else render();return}
+  await signWalletChallenge(provider);
   $("signatureGate").hidden=true;closeWalletChooser();walletChooserStatus("");
-  setNotice("<strong>"+safe(label)+" connected on Base.</strong> No message signature or transaction was requested to connect. Any later marketplace transaction requires your explicit wallet approval.");if(ownedByMe)load(true,true);else render();
+  setNotice("<strong>"+safe(label)+" connected and verified on Base.</strong> The site signature was approved. Any later marketplace transaction requires your explicit wallet approval.");if(ownedByMe)load(true,true);else render();
  }catch(error){accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;closeWalletChooser();setNotice("<strong>Wallet connection was not completed.</strong> "+safe(error?.message||error)+". No transaction was sent. You can retry when ready.",true);if(ownedByMe&&account&&walletOnBase)load(true,true);else render()}
 }
 function attachWalletListeners(provider){
  if(!provider||listenerProviders.has(provider))return;
  listenerProviders.add(provider);
- provider.on?.("accountsChanged",a=>{const nextAccount=a[0]||null;if((nextAccount||"").toLowerCase()===(account||"").toLowerCase())return;account=nextAccount;walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";if(walletOnBase)setNotice("<strong>Wallet account changed.</strong> No signature is required to connect the selected account.");if(ownedByMe)load(true,true);else render()}).catch(()=>{if(ownedByMe)load(true,true);else render()})}else{activeProvider=null;walletChainId=null;if(ownedByMe)load(true,true);else render()}});
+ provider.on?.("accountsChanged",a=>{const nextAccount=a[0]||null;if((nextAccount||"").toLowerCase()===(account||"").toLowerCase())return;account=nextAccount;walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=!account;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";if(walletOnBase)setNotice("<strong>Wallet account changed.</strong> Approve a new site signature to verify this account.",true);if(ownedByMe)load(true,true);else render()}).catch(()=>{if(ownedByMe)load(true,true);else render()})}else{activeProvider=null;walletChainId=null;if(ownedByMe)load(true,true);else render()}});
  provider.on?.("chainChanged",chain=>{walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";ownershipCache.clear();const required=networkForContract(COLLECTIONS[selected].contract);if(!walletMatchesContract(COLLECTIONS[selected].contract))setNotice("<strong>Wallet network changed.</strong> Switch to "+safe(required.name)+" Mainnet (chain ID "+required.id+") for this collection's Seaport and ownership actions.",true);if($("networkLabel"))$("networkLabel").innerHTML='<i class="green-dot"></i> '+safe(required.name)+' network';if($("networkExplorer")){$("networkExplorer").href=required.explorer;$("networkExplorer").textContent=required.name+" explorer ↗"}if($("footerExplorer")){$("footerExplorer").href=required.explorer;$("footerExplorer").textContent=required.name+" Explorer ↗"};if(ownedByMe)load(true,true);else render()});
 }
 $("connect").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open wallet chooser.</strong> "+safe(error?.message||error),true)));
