@@ -25,6 +25,9 @@ const appKit = createAppKit({
   enableEIP6963: true,
   allWallets: 'SHOW',
   features: {
+    // Local fallback; the Reown Dashboard project setting remains authoritative
+    // whenever remote configuration is available for this projectId.
+    multiWallet: true,
     analytics: false,
     allWallets: true,
     connectMethodsOrder: ['wallet'],

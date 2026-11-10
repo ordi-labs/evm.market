@@ -208,14 +208,17 @@ test("Reown exposes wallet-directory, injected and EIP-6963 EVM connectors only 
   assert.match(app, /enableInjected: true/);
   assert.match(app, /enableEIP6963: true/);
   assert.match(app, /allWallets: 'SHOW'/);
+  assert.match(app, /multiWallet: true/);
   assert.match(app, /connectMethodsOrder: \['wallet'\]/);
   assert.match(app, /emailCapture: false/);
   assert.match(app, /socials: false/);
-  assert.doesNotMatch(app, /multiWallet\s*:\s*true/);
   assert.match(app, /const appUrl = window\.location\.origin/);
   assert.doesNotMatch(app, /@walletconnect\/ethereum-provider|showQrModal/);
   assert.match(html, /querySelectorAll\("\[data-collection\]"\).*addEventListener\("click",async/);
   assert.match(html, /await ensureWalletForContract\(COLLECTIONS\[selected\]\.contract\)/);
+  assert.match(html, /openWalletManager/);
+  assert.match(html, /view:"ProfileWallets"/);
+  assert.match(html, /id="manageWallets"/);
 });
 test("English live market dashboard shows the five requested metrics for every collection", () => {
   for (const label of ["Floor Price", "24h Volume", "Total Volume", "Market Cap*", "Holders"]) assert.ok(html.includes(`<th>${label}</th>`));

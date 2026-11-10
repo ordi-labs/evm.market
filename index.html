@@ -36,7 +36,7 @@
 </head>
 <body>
 <div class="topline"><div class="wrap"><span><strong>BASE + POLYGON</strong> &nbsp;·&nbsp; A home for onchain culture</span><span>Independent collector experience ↗</span></div></div>
-<header class="wrap nav"><a class="logo" href="#" aria-label="evm.market home">evm<em>.</em>market</a><nav class="navlinks"><a href="#market">Explore</a><a href="#collections">Collections</a><a id="networkExplorer" href="https://basescan.org" target="_blank" rel="noopener noreferrer">Base explorer ↗</a></nav><div class="navright"><span class="network" id="networkLabel"><i class="green-dot"></i> Base network</span><button id="installApp" class="install-app" type="button" hidden>Install app ↓</button><button id="connect" class="primary">Connect wallet ↗</button><button id="disconnect" type="button" hidden>Disconnect wallet</button></div></header>
+<header class="wrap nav"><a class="logo" href="#" aria-label="evm.market home">evm<em>.</em>market</a><nav class="navlinks"><a href="#market">Explore</a><a href="#collections">Collections</a><a id="networkExplorer" href="https://basescan.org" target="_blank" rel="noopener noreferrer">Base explorer ↗</a></nav><div class="navright"><span class="network" id="networkLabel"><i class="green-dot"></i> Base network</span><button id="installApp" class="install-app" type="button" hidden>Install app ↓</button><button id="connect" class="primary">Connect wallet ↗</button><button id="manageWallets" type="button" hidden>Manage wallets</button><button id="disconnect" type="button" hidden>Disconnect wallet</button></div></header>
 <main class="wrap">
 <section class="hero"><div><div class="eyebrow">Digital collectibles · Base + Polygon</div><h1>Culture is<br>what you <span>collect.</span></h1><p>A considered space for iconic onchain collections. Explore Base Punks, NodeMonkes, BYTEBEASTS, Neon Relics, Base Oddities, Pixel Nomads, CryptoPunks [Base], Nexus//Legends and NodeMonkes [Polygon], discover your next favorite, and trade through supported marketplace rails.</p><div class="hero-actions"><button class="primary" onclick="document.getElementById('market').scrollIntoView({behavior:'smooth'})">Explore collections ↓</button><a href="https://www.base.org/" target="_blank" rel="noopener noreferrer"><button>Discover Base ↗</button></a></div></div><aside class="hero-aside"><div class="feature-label">The collection edit · 001</div><div class="feature-big">Own a piece<br>of the internet.</div><div class="feature-bottom"><small>Nine collections.<br>Two EVM networks.</small><span class="feature-number">90,000 ITEMS</span></div></aside></section>
 <section class="metrics" aria-label="Marketplace overview"><div class="metric"><strong>90,000</strong><span>Collection supply</span></div><div class="metric"><strong>09</strong><span>Curated collections</span></div><div class="metric"><strong>Base + Polygon</strong><span>Networks</span></div></section>
@@ -459,6 +459,14 @@ function walletErrorMessage(error,fallback="Wallet connection failed."){
  return typeof error==="string"&&error.trim()?error.trim():fallback
 }
 function chooseWalletProvider(){return connectReownWallet()}
+async function openWalletManager(){
+ try{
+  const appKit=await window.__loadReownAppKit?.();
+  if(!appKit||typeof appKit.open!=="function")throw new Error("Reown AppKit could not be loaded. Please retry.");
+  if(typeof appKit.getConnections==="function"&&!appKit.getConnections("eip155").length)throw new Error("Connect a wallet before managing wallet connections.");
+  await appKit.open({view:"ProfileWallets"});
+ }catch(error){setNotice("<strong>Wallet manager could not be opened.</strong> "+safe(walletErrorMessage(error)),true)}
+}
 let reownProvider=null;
 const REOWN_EVM_PROVIDER_TYPES=new Set(["WALLET_CONNECT","INJECTED","ANNOUNCED","EXTERNAL"]);
 function isEvmAddress(value){return typeof value==="string"&&/^0x[a-f0-9]{40}$/i.test(value)}
@@ -557,7 +565,7 @@ async function connectWalletSession(provider,label){
    catch(error){switchError=error;chain=await provider.request({method:"eth_chainId"}).catch(()=>"0x0")}
   }
   walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";ownershipCache.clear();
-  $("connect").textContent=account.slice(0,6)+"…"+account.slice(-4);$("disconnect").hidden=false;attachWalletListeners(provider);
+  $("connect").textContent=account.slice(0,6)+"…"+account.slice(-4);$("disconnect").hidden=false;$("manageWallets").hidden=false;attachWalletListeners(provider);
   if(!walletOnBase){accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;setNotice("<strong>"+safe(label)+" connected, but the wallet is not on Base.</strong> "+safe(switchError?.message||"Switch to Base Mainnet (chain ID 8453) to continue.")+" No transaction was requested.",true);closeReownModal();if(ownedByMe)load(true,true);else render();return}
   await signWalletChallenge(provider);
   $("signatureGate").hidden=true;closeReownModal();walletConnectionNotice("");
@@ -567,11 +575,11 @@ async function connectWalletSession(provider,label){
 function attachWalletListeners(provider){
  if(!provider||listenerProviders.has(provider))return;
  listenerProviders.add(provider);
- provider.on?.("accountsChanged",a=>{const nextAccount=Array.isArray(a)?a.find(isEvmAddress)||null:null;if((nextAccount||"").toLowerCase()===(account||"").toLowerCase())return;account=nextAccount;walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=!account;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";if(walletOnBase)setNotice("<strong>Wallet account changed.</strong> Approve a new site signature to verify this account.",true);if(ownedByMe)load(true,true);else render()}).catch(()=>{if(ownedByMe)load(true,true);else render()})}else{activeProvider=null;walletChainId=null;if(ownedByMe)load(true,true);else render()}});
+ provider.on?.("accountsChanged",a=>{const nextAccount=Array.isArray(a)?a.find(isEvmAddress)||null:null;if((nextAccount||"").toLowerCase()===(account||"").toLowerCase())return;account=nextAccount;walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=!account;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("manageWallets").hidden=!account;$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";if(walletOnBase)setNotice("<strong>Wallet account changed.</strong> Approve a new site signature to verify this account.",true);if(ownedByMe)load(true,true);else render()}).catch(()=>{if(ownedByMe)load(true,true);else render()})}else{activeProvider=null;walletChainId=null;if(ownedByMe)load(true,true);else render()}});
  provider.on?.("chainChanged",chain=>{walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";ownershipCache.clear();const required=networkForContract(COLLECTIONS[selected].contract);if(!walletMatchesContract(COLLECTIONS[selected].contract))setNotice("<strong>Wallet network changed.</strong> Switch to "+safe(required.name)+" Mainnet (chain ID "+required.id+") for this collection's Seaport and ownership actions.",true);if($("networkLabel"))$("networkLabel").innerHTML='<i class="green-dot"></i> '+safe(required.name)+' network';if($("networkExplorer")){$("networkExplorer").href=required.explorer;$("networkExplorer").textContent=required.name+" explorer ↗"}if($("footerExplorer")){$("footerExplorer").href=required.explorer;$("footerExplorer").textContent=required.name+" Explorer ↗"};if(ownedByMe)load(true,true);else render()});
- provider.on?.("disconnect",reason=>{if(activeProvider!==provider)return;reownProvider=null;activeProvider=null;account=null;walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;signatureVerifierPromise=null;$("connect").textContent="Connect wallet ↗";$("disconnect").hidden=true;$("signatureGate").hidden=true;ownershipCache.clear();closeReownModal();setNotice("<strong>Wallet session ended.</strong> Reconnect before using marketplace actions."+(reason?.message?" "+safe(reason.message):""),true);if(ownedByMe)load(true,true);else render()});
+ provider.on?.("disconnect",reason=>{if(activeProvider!==provider)return;reownProvider=null;activeProvider=null;account=null;walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;signatureVerifierPromise=null;$("connect").textContent="Connect wallet ↗";$("manageWallets").hidden=true;$("disconnect").hidden=true;$("signatureGate").hidden=true;ownershipCache.clear();closeReownModal();setNotice("<strong>Wallet session ended.</strong> Reconnect before using marketplace actions."+(reason?.message?" "+safe(reason.message):""),true);if(ownedByMe)load(true,true);else render()});
 }
-$("connect").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open Reown wallet selector.</strong> "+safe(walletErrorMessage(error)),true)));
+$("connect").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open Reown wallet selector.</strong> "+safe(walletErrorMessage(error)),true)));$("manageWallets").addEventListener("click",()=>openWalletManager());
 $("signatureGateContinue").addEventListener("click",()=>chooseWalletProvider());$("signatureGate").hidden=!accessVerified;
 async function disconnectWallet(){
  const provider=reownProvider||activeProvider;let disconnectError=null;
@@ -581,7 +589,7 @@ async function disconnectWallet(){
   else if(provider&&typeof provider.disconnect==="function")await provider.disconnect();
  }catch(error){disconnectError=error;try{if(provider&&typeof provider.disconnect==="function")await provider.disconnect()}catch{}}
  reownProvider=null;account=null;walletChainId=null;walletOnBase=false;activeProvider=null;accessVerified=false;verifiedAccount=null;signatureVerifierPromise=null;$("signatureGate").hidden=true;ownershipCache.clear();
- $("connect").textContent="Connect wallet ↗";$("disconnect").hidden=true;
+ $("connect").textContent="Connect wallet ↗";$("manageWallets").hidden=true;$("disconnect").hidden=true;
  closeReownModal();
  if(disconnectError)setNotice("<strong>Wallet disconnected locally.</strong> Reown reported: "+safe(disconnectError?.message||disconnectError)+". Review the wallet app if its external session remains active.",true);
  else setNotice("<strong>Wallet disconnected.</strong> Reown’s EVM session was cleared and this site no longer has an active wallet connection.");
