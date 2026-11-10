@@ -172,7 +172,7 @@ async function refreshMarketDashboard(){
    try{const response=await fetch("/api/trade?action=collection-stats&contract="+encodeURIComponent(collection.contract),{cache:"no-store",headers:{accept:"application/json"}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"Marketplace statistics unavailable");fillDashboardRow(row,collection,data,null);return true}
    catch(error){fillDashboardRow(row,collection,null,error.message||"Marketplace statistics unavailable");return false}
   }));
-  const updated=results.filter(Boolean).length;status.textContent="Live data updated "+new Date().toLocaleTimeString()+" · "+updated+" / "+results.length+" collections · Sources: OpenSea and Rarible";
+  const updated=results.filter(Boolean).length;status.textContent="Live data updated "+new Date().toLocaleTimeString()+" · "+updated+" / "+results.length+" collections · Source: OpenSea";
  }finally{marketDashboardLoading=false}
 }
 function initializeMarketDashboard(){

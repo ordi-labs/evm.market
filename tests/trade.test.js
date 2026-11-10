@@ -775,25 +775,32 @@ test("serves normalized OpenSea floor, 24h volume, total volume, holders and flo
   assert.deepEqual(data.marketCap, {value: 250, currency: "ETH", estimated: true});
 });
 
-test("uses Rarible daily and all-time Polygon stats for floor, volume, supply and holders", async t => {
+test("discovers Polygon collection by NFT contract and uses OpenSea stats", async t => {
   const originalFetch = globalThis.fetch; const requested = [];
   globalThis.fetch = async url => {
     const parsed = new URL(String(url)); requested.push(parsed);
-    const period = parsed.searchParams.get("period");
-    const row = {id: "POLYGON:" + POLYGON_CONTRACT, volumeNative: {currency: "POL", value: period === "D1" ? 2.5 : 99.5}, floorPrice: {currency: "POL", value: 0.15}, totalItemSupply: 10000, ownersCount: 125};
-    return new Response(JSON.stringify({result: [row]}), {status: 200});
+    if (parsed.pathname === "/api/v2/chain/polygon/contract/" + POLYGON_CONTRACT + "/nfts") {
+      return new Response(JSON.stringify({nfts: [{collection: "nodemonkes-polygon"}]}), {status: 200});
+    }
+    assert.equal(parsed.pathname, "/api/v2/collections/nodemonkes-polygon/stats");
+    return new Response(JSON.stringify({
+      total: {floor_price: 0.15, floor_price_symbol: "POL", volume: 99.5, volume_symbol: "POL", num_owners: 125},
+      intervals: [{interval: "one_day", volume: 2.5, volume_symbol: "POL", sales: 3}]
+    }), {status: 200});
   };
   t.after(() => { globalThis.fetch = originalFetch; });
-  const response = await onRequest({request: request("collection-stats", undefined, {method: "GET", contract: POLYGON_CONTRACT}), env: {RARIBLE_API_KEY: "rarible-test-key"}});
+  const response = await onRequest({request: request("collection-stats", undefined, {method: "GET", contract: POLYGON_CONTRACT}), env: {OPENSEA_API_KEY: "test-key"}});
   assert.equal(response.status, 200);
   assert.equal(requested.length, 2);
-  assert.ok(requested.every(url => url.pathname === "/v0.1/data/rankings/collections/volume"));
-  assert.ok(requested.every(url => url.searchParams.get("blockchain") === "POLYGON"));
-  assert.deepEqual(new Set(requested.map(url => url.searchParams.get("period"))), new Set(["D1", "ALL"]));
+  assert.equal(requested[0].searchParams.get("limit"), "1");
+  assert.deepEqual(requested.map(url => url.pathname), [
+    "/api/v2/chain/polygon/contract/" + POLYGON_CONTRACT + "/nfts",
+    "/api/v2/collections/nodemonkes-polygon/stats"
+  ]);
   const data = await response.json();
   assert.deepEqual(data.floorPrice, {value: 0.15, currency: "POL"});
-  assert.deepEqual(data.volume24h, {currency: "POL", value: 2.5});
-  assert.deepEqual(data.totalVolume, {currency: "POL", value: 99.5});
+  assert.deepEqual(data.volume24h, {value: 2.5, currency: "POL"});
+  assert.deepEqual(data.totalVolume, {value: 99.5, currency: "POL"});
   assert.equal(data.holders, 125);
   assert.deepEqual(data.marketCap, {value: 1500, currency: "POL", estimated: true});
 });

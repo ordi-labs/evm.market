@@ -340,40 +340,24 @@ export async function onRequest({ request, env }) {
     const contract = String(url.searchParams.get("contract") || "").toLowerCase();
     const collection = COLLECTIONS.get(contract);
     if (!collection) return json({ error: "Unsupported collection contract." }, 400);
-    if (contract === NODEMONKES_POLYGON) {
-      const apiKey = raribleApiKey(env);
-      if (!apiKey) return json({ error: "Rarible API is not configured on the server." }, 503);
-      const getRariblePeriod = async period => {
-        const params = new URLSearchParams({ blockchain: "POLYGON", ids: "POLYGON:" + contract, period, limit: "1" });
-        const response = await fetch(RARIBLE_API + "/data/rankings/collections/volume?" + params, { headers: { accept: "application/json", "x-api-key": apiKey } });
-        const raw = await response.text();
-        let data;
-        try { data = raw ? JSON.parse(raw) : {}; } catch { throw new Error("Rarible returned invalid statistics data."); }
-        if (!response.ok) throw new Error("Rarible statistics request failed (HTTP " + response.status + ").");
-        const rows = Array.isArray(data.result) ? data.result : [];
-        return rows.find(row => String(row.id || "").toUpperCase() === "POLYGON:" + contract.toUpperCase()) || rows[0] || null;
-      };
-      try {
-        const [daily, allTime] = await Promise.all([getRariblePeriod("D1"), getRariblePeriod("ALL")]);
-        const floor = daily?.floorPrice || allTime?.floorPrice || null;
-        const totalSupply = Number(allTime?.totalItemSupply ?? daily?.totalItemSupply ?? 10000);
-        const floorValue = Number(floor?.value);
-        return json({
-          source: "rarible", updatedAt: new Date().toISOString(),
-          floorPrice: Number.isFinite(floorValue) && floor ? { value: floorValue, currency: floor.currency } : null,
-          volume24h: daily?.volumeNative || null,
-          totalVolume: allTime?.volumeNative || null,
-          holders: Number.isFinite(Number(allTime?.ownersCount ?? daily?.ownersCount)) ? Number(allTime?.ownersCount ?? daily?.ownersCount) : null,
-          totalSupply,
-          marketCap: Number.isFinite(floorValue) && floor && Number.isFinite(totalSupply) ? { value: floorValue * totalSupply, currency: floor.currency, estimated: true } : null
-        });
-      } catch (error) { return json({ error: error.message || "Rarible statistics are unavailable." }, 502); }
-    }
     const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
     if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
-    if (!collection.slug) return json({ error: "No verified OpenSea collection slug is configured." }, 404);
+    let collectionSlug = collection.slug;
+    if (contract === NODEMONKES_POLYGON) {
+      let discoveryResponse;
+      try { discoveryResponse = await fetch(OPENSEA_API + "/chain/polygon/contract/" + encodeURIComponent(contract) + "/nfts?limit=1", { headers: { accept: "application/json", "x-api-key": apiKey } }); }
+      catch { return json({ error: "OpenSea Polygon collection lookup failed." }, 502); }
+      const discoveryRaw = await discoveryResponse.text();
+      let discoveryData;
+      try { discoveryData = discoveryRaw ? JSON.parse(discoveryRaw) : {}; } catch { return json({ error: "OpenSea returned invalid Polygon collection data." }, 502); }
+      if (!discoveryResponse.ok) return json({ error: "OpenSea Polygon collection lookup failed.", providerStatus: discoveryResponse.status, details: discoveryData?.errors || discoveryData?.detail || discoveryData?.message || null }, discoveryResponse.status === 429 ? 429 : 502);
+      const nfts = Array.isArray(discoveryData.nfts) ? discoveryData.nfts : [];
+      collectionSlug = nfts.map(nft => String(nft.collection || "").trim()).find(Boolean) || null;
+      if (!collectionSlug) return json({ error: "OpenSea has no indexed NFT collection for this Polygon contract." }, 404);
+    }
+    if (!collectionSlug) return json({ error: "No OpenSea collection slug is available." }, 404);
     let response;
-    try { response = await fetch(OPENSEA_API + "/collections/" + encodeURIComponent(collection.slug) + "/stats", { headers: { accept: "application/json", "x-api-key": apiKey } }); }
+    try { response = await fetch(OPENSEA_API + "/collections/" + encodeURIComponent(collectionSlug) + "/stats", { headers: { accept: "application/json", "x-api-key": apiKey } }); }
     catch { return json({ error: "OpenSea statistics request failed." }, 502); }
     const raw = await response.text();
     let data;
