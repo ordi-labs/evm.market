@@ -104,7 +104,7 @@ async function assertBaseWallet(){if(!activeProvider||!account)throw new Error("
 async function assertWalletForContract(contract){if(!activeProvider||!account)throw new Error("Connect a wallet before trading.");const network=networkForContract(contract),chain=normalizeChainId(await activeProvider.request({method:"eth_chainId"}));walletChainId=chain;walletOnBase=chain==="0x2105";if(chain!==network.chainId)throw new Error("Switch your wallet to "+network.name+" mainnet (chain ID "+network.id+") before signing or sending.");const accounts=await activeProvider.request({method:"eth_accounts"});if(!Array.isArray(accounts)||!accounts.some(a=>String(a).toLowerCase()===account.toLowerCase()))throw new Error("The connected wallet account changed. Reconnect and retry.")}
 async function ensureWalletForContract(contract){const network=networkForContract(contract);if(!activeProvider||!account)throw new Error("Connect a wallet before trading.");const current=normalizeChainId(await activeProvider.request({method:"eth_chainId"}));walletChainId=current;walletOnBase=current==="0x2105";if(current!==network.chainId){if(!window.confirm("Switch the connected wallet to "+network.name+" Mainnet (chain ID "+network.id+")? This changes the network only; no transaction or approval is made."))throw new Error("Network switch cancelled; no transaction was sent.");if(network.slug==="polygon")await switchToPolygon(activeProvider);else await switchToBase(activeProvider)}await assertWalletForContract(contract)}
 async function waitForReceipt(contract,hash,attempts=20){const rpc=rpcForContract(contract),network=networkForContract(contract);for(let i=0;i<attempts;i++){const receipt=await rpc("eth_getTransactionReceipt",[hash]);if(receipt)return receipt;await new Promise(resolve=>setTimeout(resolve,3000))}return null}
-async function sendNetworkTransaction(tx,contract){if(!walletConnectProvider||activeProvider!==walletConnectProvider)throw new Error("WalletConnect is required for every transaction.");await assertWalletForContract(contract);const hash=await activeProvider.request({method:"eth_sendTransaction",params:[{...tx,from:account}]});if(typeof hash!=="string"||!/^0x[0-9a-f]{64}$/i.test(hash))throw new Error("Wallet did not return a valid "+networkForContract(contract).name+" transaction hash.");return hash}
+async function sendNetworkTransaction(tx,contract){if(!reownProvider||activeProvider!==reownProvider)throw new Error("Connect a wallet through Reown before every transaction.");await assertWalletForContract(contract);const hash=await activeProvider.request({method:"eth_sendTransaction",params:[{...tx,from:account}]});if(typeof hash!=="string"||!/^0x[0-9a-f]{64}$/i.test(hash))throw new Error("Wallet did not return a valid "+networkForContract(contract).name+" transaction hash.");return hash}
 async function ownsToken(contract,id){if(!account||!id||!activeProvider)return null;const key=contract.toLowerCase()+":"+String(id)+":"+account.toLowerCase();if(ownershipCache.has(key))return ownershipCache.get(key);const task=(async()=>{try{const tokenHex=BigInt(id).toString(16).padStart(64,"0"),raw=await rpcForContract(contract)("eth_call",[{to:contract,data:"0x6352211e"+tokenHex},"latest"]);if(!raw||raw==="0x"||raw.length<66)return null;return "0x"+raw.slice(-40).toLowerCase()===account.toLowerCase()}catch{return null}})();ownershipCache.set(key,task);return task}
 function supportsListingActions(contract){return !isPolygonCollection(contract)}
 function tradeButton(label,contract,id,cls=""){const b=document.createElement("button");b.type="button";b.textContent=label.replace(/\s*↗$/g,"");if(cls)b.className=cls;b.title="Seaport trade on "+networkForContract(contract).name+". Every wallet action requires your confirmation.";b.setAttribute("aria-label",label.replace(/\s*↗$/g,"")+" on "+networkForContract(contract).name);b.addEventListener("click",()=>runTradeAction(label.replace(/\s*↗$/g,""),contract,id));return b}
@@ -458,47 +458,50 @@ function walletErrorMessage(error,fallback="Wallet connection failed."){
  for(const candidate of candidates)if(typeof candidate==="string"&&candidate.trim())return candidate.trim();
  return typeof error==="string"&&error.trim()?error.trim():fallback
 }
-function chooseWalletProvider(){return connectWalletConnect()}
-let walletConnectProvider=null;
+function chooseWalletProvider(){return connectReownWallet()}
+let reownProvider=null;
+const REOWN_EVM_PROVIDER_TYPES=new Set(["WALLET_CONNECT","INJECTED","ANNOUNCED","EXTERNAL"]);
+function isEvmAddress(value){return typeof value==="string"&&/^0x[a-f0-9]{40}$/i.test(value)}
 function getConnectedReownProvider(appKit){
  const state=appKit.getAccount?.("eip155"),type=appKit.getWalletProviderType?.(),provider=appKit.getWalletProvider?.();
- if(!state?.isConnected||!state.address||type!=="WALLET_CONNECT"||!provider||typeof provider.request!=="function")return null;
+ if(!state?.isConnected||!isEvmAddress(state.address)||!REOWN_EVM_PROVIDER_TYPES.has(type)||!provider||typeof provider.request!=="function")return null;
  return provider
 }
 function waitForReownProvider(appKit,timeoutMs=180000){
  const current=getConnectedReownProvider(appKit);if(current)return Promise.resolve(current);
  return new Promise((resolve,reject)=>{
-  let settled=false,timer=null,modalOpened=true;
+  let settled=false,timer=null,closeTimer=null,modalOpened=true;
   const subscriptions=[];
-  const cleanup=()=>{if(timer)clearTimeout(timer);document.removeEventListener("visibilitychange",onVisibilityChange);for(const unsubscribe of subscriptions)try{unsubscribe()}catch{}};
+  const cleanup=()=>{if(timer)clearTimeout(timer);if(closeTimer)clearTimeout(closeTimer);document.removeEventListener("visibilitychange",onVisibilityChange);for(const unsubscribe of subscriptions)try{unsubscribe()}catch{}};
   const finish=(error,provider)=>{if(settled)return;settled=true;cleanup();if(error)reject(error);else resolve(provider)};
   const check=()=>{if(settled)return;const provider=getConnectedReownProvider(appKit);if(provider)finish(null,provider)};
   const checkSoon=()=>queueMicrotask(check);
   const armTimeout=()=>{if(timer)clearTimeout(timer);timer=null;if(document.visibilityState==="hidden")return;timer=setTimeout(()=>finish(new Error("Wallet connection timed out. Return to this tab after approving the request in your wallet, then retry.")),timeoutMs)};
   const onVisibilityChange=()=>{armTimeout();checkSoon()};
   const addSubscription=unsubscribe=>{if(typeof unsubscribe==="function")subscriptions.push(unsubscribe)};
+  const onModalClosed=()=>{if(closeTimer)clearTimeout(closeTimer);closeTimer=setTimeout(()=>{const provider=getConnectedReownProvider(appKit);if(provider)finish(null,provider);else finish(new Error("Wallet connection was cancelled."))},300)};
   try{
    if(typeof appKit.subscribeProviders==="function")addSubscription(appKit.subscribeProviders(checkSoon));
    if(typeof appKit.subscribeConnections==="function")addSubscription(appKit.subscribeConnections(checkSoon));
-   if(typeof appKit.subscribeState==="function")addSubscription(appKit.subscribeState(state=>{if(modalOpened&&state?.open===false)finish(new Error("Wallet connection was cancelled."));else checkSoon()}));
+   if(typeof appKit.subscribeState==="function")addSubscription(appKit.subscribeState(state=>{if(modalOpened&&state?.open===false)onModalClosed();else checkSoon()}));
   }catch(error){finish(error);return}
   document.addEventListener("visibilitychange",onVisibilityChange);armTimeout();check()
  })
 }
-async function connectWalletConnect(){
+async function connectReownWallet(){
  $("signatureGate").hidden=true;
- walletConnectionNotice("Opening Reown Mobile / QR Code wallet selector…");
+ walletConnectionNotice("Opening Reown wallet directory…");
  try{
   const appKit=await window.__loadReownAppKit?.();
   if(!appKit||typeof appKit.open!=="function")throw new Error("Reown AppKit could not be loaded. Please retry.");
-  await appKit.open({view:"ConnectingWalletConnect"});
-  setNotice("<strong>WalletConnect is open.</strong> Choose a wallet or scan the QR code, approve the connection, then review the sign-in message.");
-  walletConnectProvider=await waitForReownProvider(appKit);
-  await connect(walletConnectProvider,"Reown AppKit · WalletConnect");
+  await appKit.open({view:"AllWallets"});
+  setNotice("<strong>Reown wallet directory is open.</strong> Choose a wallet from the list or use its QR/deep-link option. Then review the readable sign-in message.");
+  reownProvider=await waitForReownProvider(appKit);
+  await connect(reownProvider,"Reown AppKit wallet");
  }catch(error){
   const message=walletErrorMessage(error,"Unknown Reown AppKit error");
   closeReownModal();$("signatureGate").hidden=!accessVerified;
-  setNotice("<strong>Reown WalletConnect could not connect.</strong> "+safe(message)+". No transaction was sent. You can retry.",true)
+  setNotice("<strong>Reown wallet connection did not complete.</strong> "+safe(message)+". No transaction was sent. You can retry.",true)
  }
 }
 function normalizeChainId(value){
@@ -540,9 +543,12 @@ function connect(provider=null,label="wallet"){
 }
 async function connectWalletSession(provider,label){
  try{
-  if(!walletConnectProvider||provider!==walletConnectProvider)throw new Error("Connect through the WalletConnect QR window before continuing.");
+  if(!reownProvider||provider!==reownProvider)throw new Error("Connect through the Reown wallet selector before continuing.");
   const accounts=await provider.request({method:"eth_requestAccounts"});
-  activeProvider=provider;account=accounts[0]||null;
+  const appKitAddress=window.__reownAppKit?.getAccount?.("eip155")?.address;
+  const connectedAccount=Array.isArray(accounts)?accounts.find(value=>isEvmAddress(value)&&value.toLowerCase()===String(appKitAddress||"").toLowerCase()):null;
+  if(!connectedAccount)throw new Error("The wallet account did not match Reown AppKit’s connected EVM account.");
+  activeProvider=provider;account=connectedAccount;
   if(!account){walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;setNotice("<strong>Wallet not connected.</strong> No account was returned.",true);render();return}
   let chain=await provider.request({method:"eth_chainId"}),switchError=null;
   if(normalizeChainId(chain)!=="0x2105"){
@@ -561,18 +567,24 @@ async function connectWalletSession(provider,label){
 function attachWalletListeners(provider){
  if(!provider||listenerProviders.has(provider))return;
  listenerProviders.add(provider);
- provider.on?.("accountsChanged",a=>{const nextAccount=a[0]||null;if((nextAccount||"").toLowerCase()===(account||"").toLowerCase())return;account=nextAccount;walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=!account;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";if(walletOnBase)setNotice("<strong>Wallet account changed.</strong> Approve a new site signature to verify this account.",true);if(ownedByMe)load(true,true);else render()}).catch(()=>{if(ownedByMe)load(true,true);else render()})}else{activeProvider=null;walletChainId=null;if(ownedByMe)load(true,true);else render()}});
+ provider.on?.("accountsChanged",a=>{const nextAccount=Array.isArray(a)?a.find(isEvmAddress)||null:null;if((nextAccount||"").toLowerCase()===(account||"").toLowerCase())return;account=nextAccount;walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=!account;ownershipCache.clear();$("connect").textContent=account?account.slice(0,6)+"…"+account.slice(-4):"Connect wallet ↗";$("disconnect").hidden=!account;if(account){provider.request({method:"eth_chainId"}).then(chain=>{walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";if(walletOnBase)setNotice("<strong>Wallet account changed.</strong> Approve a new site signature to verify this account.",true);if(ownedByMe)load(true,true);else render()}).catch(()=>{if(ownedByMe)load(true,true);else render()})}else{activeProvider=null;walletChainId=null;if(ownedByMe)load(true,true);else render()}});
  provider.on?.("chainChanged",chain=>{walletChainId=normalizeChainId(chain);walletOnBase=walletChainId==="0x2105";ownershipCache.clear();const required=networkForContract(COLLECTIONS[selected].contract);if(!walletMatchesContract(COLLECTIONS[selected].contract))setNotice("<strong>Wallet network changed.</strong> Switch to "+safe(required.name)+" Mainnet (chain ID "+required.id+") for this collection's Seaport and ownership actions.",true);if($("networkLabel"))$("networkLabel").innerHTML='<i class="green-dot"></i> '+safe(required.name)+' network';if($("networkExplorer")){$("networkExplorer").href=required.explorer;$("networkExplorer").textContent=required.name+" explorer ↗"}if($("footerExplorer")){$("footerExplorer").href=required.explorer;$("footerExplorer").textContent=required.name+" Explorer ↗"};if(ownedByMe)load(true,true);else render()});
+ provider.on?.("disconnect",reason=>{if(activeProvider!==provider)return;reownProvider=null;activeProvider=null;account=null;walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;signatureVerifierPromise=null;$("connect").textContent="Connect wallet ↗";$("disconnect").hidden=true;$("signatureGate").hidden=true;ownershipCache.clear();closeReownModal();setNotice("<strong>Wallet session ended.</strong> Reconnect before using marketplace actions."+(reason?.message?" "+safe(reason.message):""),true);if(ownedByMe)load(true,true);else render()});
 }
 $("connect").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open Reown wallet selector.</strong> "+safe(walletErrorMessage(error)),true)));
 $("signatureGateContinue").addEventListener("click",()=>chooseWalletProvider());$("signatureGate").hidden=!accessVerified;
 async function disconnectWallet(){
- const provider=walletConnectProvider||activeProvider;
- try{if(provider?.connected&&typeof provider.disconnect==="function")await provider.disconnect()}catch(error){setNotice("<strong>WalletConnect session could not be closed cleanly.</strong> "+safe(error?.message||error)+" The local session was cleared.",true)}
- walletConnectProvider=null;account=null;walletChainId=null;walletOnBase=false;activeProvider=null;accessVerified=false;verifiedAccount=null;signatureVerifierPromise=null;$("signatureGate").hidden=true;ownershipCache.clear();
+ const provider=reownProvider||activeProvider;let disconnectError=null;
+ try{
+  const appKit=window.__reownAppKit;
+  if(typeof appKit?.disconnect==="function")await appKit.disconnect("eip155");
+  else if(provider&&typeof provider.disconnect==="function")await provider.disconnect();
+ }catch(error){disconnectError=error;try{if(provider&&typeof provider.disconnect==="function")await provider.disconnect()}catch{}}
+ reownProvider=null;account=null;walletChainId=null;walletOnBase=false;activeProvider=null;accessVerified=false;verifiedAccount=null;signatureVerifierPromise=null;$("signatureGate").hidden=true;ownershipCache.clear();
  $("connect").textContent="Connect wallet ↗";$("disconnect").hidden=true;
  closeReownModal();
- setNotice("<strong>WalletConnect disconnected.</strong> The WalletConnect session was closed and this site no longer has an active wallet connection.");
+ if(disconnectError)setNotice("<strong>Wallet disconnected locally.</strong> Reown reported: "+safe(disconnectError?.message||disconnectError)+". Review the wallet app if its external session remains active.",true);
+ else setNotice("<strong>Wallet disconnected.</strong> Reown’s EVM session was cleared and this site no longer has an active wallet connection.");
  if(ownedByMe)load(true,true);else render();
 }
 $("disconnect").addEventListener("click",disconnectWallet);

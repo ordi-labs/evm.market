@@ -20,7 +20,9 @@ const appKit = createAppKit({
   projectId,
   metadata,
   themeMode: 'dark',
-  enableInjected: false,
+  enableWallets: true,
+  enableInjected: true,
+  enableEIP6963: true,
   allWallets: 'SHOW',
   features: {
     analytics: false,

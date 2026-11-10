@@ -31,32 +31,71 @@ test("refresh explicitly restarts an exhausted but incomplete collection scan", 
   assert.match(html, /scanTraitIndex\(\{contract,restartIncomplete,/);
   assert.match(html, /ensureFullTraitIndex\(contract,\{restartIncomplete:true\}\)/);
 });
-test("Reown opens its Mobile/QR wallet directory and the obsolete chooser is not rendered", async () => {
+test("Reown opens the paginated Mobile/QR wallet directory instead of a QR-only connection view", async () => {
   const app = await readFile(new URL("../src/wallet-appkit.js", import.meta.url), "utf8");
   const loader = await readFile(new URL("../src/main.jsx", import.meta.url), "utf8");
   assert.match(app, /createAppKit/);
   assert.match(loader, /import\('\.\/wallet-appkit\.js'\)/);
-  assert.match(html, /appKit\.open\(\{view:"ConnectingWalletConnect"\}\)/);
-  assert.match(html, /Opening Reown Mobile \/ QR Code wallet selector/);
+  assert.match(html, /appKit\.open\(\{view:"AllWallets"\}\)/);
+  assert.match(html, /Opening Reown wallet directory/);
+  assert.match(app, /allWallets: 'SHOW'/);
+  assert.doesNotMatch(html, /ConnectingWalletConnect/);
   assert.doesNotMatch(html, /id="walletChooser"/);
   assert.doesNotMatch(html, /window\.__walletConnectProviderPromise|classic WalletConnect/);
 });
-test("only a confirmed EIP-1193 WalletConnect account is passed to the marketplace", () => {
-  const start = html.indexOf("function getConnectedReownProvider(appKit){");
+test("only connected EVM Reown providers with a valid EVM address reach marketplace code", () => {
+  const start = html.indexOf("const REOWN_EVM_PROVIDER_TYPES");
   const end = html.indexOf("function waitForReownProvider(appKit", start);
-  const getConnectedReownProvider = vm.runInNewContext(`${html.slice(start, end)};getConnectedReownProvider`);
+  const helpers = vm.runInNewContext(`${html.slice(start, end)};({getConnectedReownProvider,isEvmAddress})`);
   const provider = {request() {}};
+  const address = "0x1234567890123456789012345678901234567890";
   const appKit = {
-    getAccount: namespace => namespace === "eip155" ? {isConnected: true, address: "0x1234"} : null,
+    getAccount: namespace => namespace === "eip155" ? {isConnected: true, address} : null,
     getWalletProviderType: () => "WALLET_CONNECT",
     getWalletProvider: () => provider
   };
-  assert.equal(getConnectedReownProvider(appKit), provider);
-  assert.equal(getConnectedReownProvider({...appKit, getAccount: () => ({isConnected: false, address: "0x1234"})}), null);
-  assert.equal(getConnectedReownProvider({...appKit, getWalletProviderType: () => "INJECTED"}), null);
-  assert.equal(getConnectedReownProvider({...appKit, getWalletProvider: () => ({})}), null);
-  assert.match(html, /activeProvider=provider;account=accounts\[0\]\|\|null/);
+  for (const type of ["WALLET_CONNECT", "INJECTED", "ANNOUNCED", "EXTERNAL"]) {
+    assert.equal(helpers.getConnectedReownProvider({...appKit, getWalletProviderType: () => type}), provider);
+  }
+  assert.equal(helpers.getConnectedReownProvider({...appKit, getWalletProviderType: () => "AUTH"}), null);
+  assert.equal(helpers.getConnectedReownProvider({...appKit, getWalletProviderType: () => "MULTI_CHAIN"}), null);
+  assert.equal(helpers.getConnectedReownProvider({...appKit, getAccount: () => ({isConnected: false, address})}), null);
+  assert.equal(helpers.getConnectedReownProvider({...appKit, getAccount: () => ({isConnected: true, address: "0x1234"})}), null);
+  assert.equal(helpers.getConnectedReownProvider({...appKit, getWalletProvider: () => ({})}), null);
+  assert.equal(helpers.isEvmAddress(address), true);
+  assert.equal(helpers.isEvmAddress("not-an-address"), false);
+  assert.match(html, /accounts\.find\(value=>isEvmAddress\(value\)&&value\.toLowerCase\(\)===String\(appKitAddress\|\|""\)\.toLowerCase\(\)\)/);
   assert.match(html, /const checkedAccount=account,checkedProvider=activeProvider/);
+});
+test("closing the Reown modal does not race a just-completed provider connection", async () => {
+  const start = html.indexOf("const REOWN_EVM_PROVIDER_TYPES");
+  const end = html.indexOf("async function connectReownWallet", start);
+  const listeners = new Map();
+  const documentStub = {
+    visibilityState: "visible",
+    addEventListener: (name, fn) => listeners.set(name, fn),
+    removeEventListener: name => listeners.delete(name)
+  };
+  const waitForReownProvider = vm.runInNewContext(`${html.slice(start, end)};waitForReownProvider`, {
+    document: documentStub,
+    setTimeout,
+    clearTimeout,
+    queueMicrotask
+  });
+  let account = null, provider = null, stateListener;
+  const appKit = {
+    getAccount: () => account,
+    getWalletProviderType: () => "WALLET_CONNECT",
+    getWalletProvider: () => provider,
+    subscribeState: callback => { stateListener = callback; return () => {}; },
+    subscribeProviders: () => () => {},
+    subscribeConnections: () => () => {}
+  };
+  const pending = waitForReownProvider(appKit, 1000);
+  stateListener({open: false});
+  provider = {request() {}};
+  account = {isConnected: true, address: "0x1234567890123456789012345678901234567890"};
+  assert.equal(await pending, provider);
 });
 test("wallet errors with missing or non-string messages are handled safely", () => {
   const start = html.indexOf("function walletErrorMessage(error,");
@@ -160,14 +199,19 @@ test("enables owner listing controls for Base collections and excludes NodeMonke
   assert.match(html, /Unlist my Seaport listing/);
   assert.match(html, /owner===true&&supportsListingActions\(contract\)/);
 });
-test("Reown connector exposes only WalletConnect on Base and Polygon with the live-domain metadata", async () => {
+test("Reown exposes wallet-directory, injected and EIP-6963 EVM connectors only on Base and Polygon", async () => {
   const app = await readFile(new URL("../src/wallet-appkit.js", import.meta.url), "utf8");
   assert.match(app, /@reown\/appkit-adapter-ethers/);
   assert.match(app, /adapters: \[new EthersAdapter\(\)\]/);
   assert.match(app, /const networks = \[base, polygon\]/);
-  assert.match(app, /enableInjected: false/);
+  assert.match(app, /enableWallets: true/);
+  assert.match(app, /enableInjected: true/);
+  assert.match(app, /enableEIP6963: true/);
   assert.match(app, /allWallets: 'SHOW'/);
   assert.match(app, /connectMethodsOrder: \['wallet'\]/);
+  assert.match(app, /emailCapture: false/);
+  assert.match(app, /socials: false/);
+  assert.doesNotMatch(app, /multiWallet\s*:\s*true/);
   assert.match(app, /const appUrl = window\.location\.origin/);
   assert.doesNotMatch(app, /@walletconnect\/ethereum-provider|showQrModal/);
   assert.match(html, /querySelectorAll\("\[data-collection\]"\).*addEventListener\("click",async/);
@@ -192,8 +236,22 @@ test("wallet connection requests a readable domain-bound personal message signat
   assert.match(html, /The site signature was approved/);
 });
 
-test("disconnect closes the WalletConnect session instead of only clearing local state", () => {
-  assert.match(html, /provider\?\.connected&&typeof provider\.disconnect===\"function\"/);
+test("disconnect clears the Reown EVM session instead of only clearing local state", () => {
+  assert.match(html, /await appKit\.disconnect\("eip155"\)/);
   assert.match(html, /await provider\.disconnect\(\)/);
-  assert.match(html, /WalletConnect disconnected/);
+  assert.match(html, /Reown’s EVM session was cleared/);
+  assert.match(html, /provider\.on\?\.\("disconnect"/);
+});
+test("connection never sends a transaction; trade requests require the confirmed Reown provider", () => {
+  const start = html.indexOf("async function connectWalletSession(");
+  const end = html.indexOf("function attachWalletListeners", start);
+  const connection = html.slice(start, end);
+  assert.doesNotMatch(connection, /eth_sendTransaction/);
+  assert.match(connection, /method:"eth_requestAccounts"/);
+  const signStart = html.indexOf("async function signWalletChallenge(");
+  const signEnd = html.indexOf("function connect(provider", signStart);
+  assert.match(html.slice(signStart, signEnd), /method:"personal_sign"/);
+  assert.match(html, /if\(!reownProvider\|\|activeProvider!==reownProvider\)/);
+  assert.match(html, /await assertWalletForContract\(contract\);const hash=await activeProvider\.request\(\{method:"eth_sendTransaction"/);
+  assert.match(html, /Every wallet action requires your confirmation/);
 });
