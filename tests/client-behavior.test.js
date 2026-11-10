@@ -31,13 +31,11 @@ test("refresh explicitly restarts an exhausted but incomplete collection scan", 
   assert.match(html, /scanTraitIndex\(\{contract,restartIncomplete,/);
   assert.match(html, /ensureFullTraitIndex\(contract,\{restartIncomplete:true\}\)/);
 });
-test("Reown mobile connect waits for AppKit provider/account events and survives wallet app switching", () => {
-  assert.match(html, /function waitForReownProvider\(appKit,timeoutMs=180000\)/);
-  assert.match(html, /appKit\.subscribeProviders/);
-  assert.match(html, /appKit\.subscribeAccount/);
-  assert.match(html, /document\.addEventListener\("visibilitychange",onVisibilityChange\)/);
-  assert.match(html, /walletConnectProvider=await waitForReownProvider\(appKit\)/);
-  assert.doesNotMatch(html, /for\(let attempt=0;attempt<120;attempt\+\+\)/);
+test("classic WalletConnect connects through its QR directory on desktop and mobile", () => {
+  assert.match(html, /window\.__walletConnectProviderPromise/);
+  assert.match(html, /provider\.connect\(\)/);
+  assert.match(html, /Opening the classic WalletConnect QR directory/);
+  assert.doesNotMatch(html, /Reown AppKit/);
 });
 test("trait catalog retains every array value and its count from collection facets", () => {
   const result = normalizeTraitCatalog({traits:[
@@ -134,16 +132,14 @@ test("enables owner listing controls for Base collections and excludes NodeMonke
   assert.match(html, /Unlist my Seaport listing/);
   assert.match(html, /owner===true&&supportsListingActions\(contract\)/);
 });
-test("wallet connector only exposes WalletConnect on Base and Polygon with live-domain metadata", async () => {
+test("wallet connector exposes only classic WalletConnect on Base and Polygon", async () => {
   const app = await readFile(new URL("../src/main.jsx", import.meta.url), "utf8");
-  assert.match(app, /const networks = \[base, polygon\]/);
-  assert.match(app, /enableInjected: false/);
-  assert.match(app, /allWallets: 'ONLY_MOBILE'/);
-  assert.match(app, /connectMethodsOrder: \['wallet'\]/);
-  assert.match(app, /WagmiAdapter/);
+  assert.match(app, /@walletconnect\/ethereum-provider/);
+  assert.match(app, /chains: \[8453\]/);
+  assert.match(app, /optionalChains: \[137\]/);
+  assert.match(app, /showQrModal: true/);
   assert.match(app, /const appUrl = window\.location\.origin/);
-  assert.match(html, /appKit\.open\(\{view:"ConnectingWalletConnect"\}\)/);
-  assert.match(html, /data-collection\]"\)\.forEach\(b=>b\.addEventListener\("click",async/);
+  assert.match(html, /querySelectorAll\("\[data-collection\]"\).*addEventListener\("click",async/);
   assert.match(html, /await ensureWalletForContract\(COLLECTIONS\[selected\]\.contract\)/);
 });
 test("English live market dashboard shows the five requested metrics for every collection", () => {

@@ -35,7 +35,6 @@
 .signature-gate{position:fixed;inset:0;z-index:3000;background:#03050bf2;display:flex;align-items:center;justify-content:center;padding:20px}.signature-gate[hidden]{display:none}.signature-gate-panel{width:min(500px,100%);background:#11151d;border:1px solid #394355;border-radius:20px;padding:26px;box-shadow:0 24px 100px #0009}.signature-gate-panel h2{margin:0 0 12px;font-size:25px;letter-spacing:-.04em}.signature-gate-panel p{color:var(--muted);font-size:13px}.signature-gate-panel .gate-warning{border:1px solid #526d3b;background:#c4fa680c;border-radius:12px;padding:12px;color:#d5ff91;font-size:12px;margin:16px 0}.wallet-chooser{position:fixed;inset:0;z-index:4000;background:#03050bdc;display:none;align-items:center;justify-content:center;padding:18px}.wallet-chooser.open{display:flex}.wallet-chooser-panel{width:min(420px,100%);background:#11151d;border:1px solid #394355;border-radius:20px;padding:22px;box-shadow:0 24px 100px #0009}.wallet-chooser-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.wallet-chooser-head h2{margin:0;font-size:22px;letter-spacing:-.04em}.wallet-chooser-head button{padding:6px 11px}.wallet-chooser-panel p{color:var(--muted);font-size:12px}.wallet-options{display:grid;gap:9px;margin-top:15px}.wallet-chooser-status{display:none;margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#202735;color:#dbe5f5;font-size:12px;overflow-wrap:anywhere}.wallet-chooser-status.visible{display:block}.wallet-chooser-status.error{background:#3b2027;color:#ffd7dd}.wallet-option{display:flex;align-items:center;gap:12px;width:100%;border-radius:12px;text-align:left;padding:12px;background:#171c26;border-color:#394355}.wallet-option-icon{width:38px;height:38px;display:grid;place-items:center;overflow:hidden;border-radius:10px;background:#222a37;font-size:23px;color:var(--lime);flex:none}.wallet-option-icon img{width:100%;height:100%;object-fit:contain}.wallet-option-copy{display:grid;gap:2px}.wallet-option-name{font-weight:750}.wallet-option-copy small{font-size:11px;color:var(--muted)}.wallet-empty{padding:14px;border:1px dashed var(--line);border-radius:12px}</style>
 </head>
 <body>
-<div id="appkit-root" aria-hidden="true"></div>
 <div class="topline"><div class="wrap"><span><strong>BASE + POLYGON</strong> &nbsp;·&nbsp; A home for onchain culture</span><span>Independent collector experience ↗</span></div></div>
 <header class="wrap nav"><a class="logo" href="#" aria-label="evm.market home">evm<em>.</em>market</a><nav class="navlinks"><a href="#market">Explore</a><a href="#collections">Collections</a><a id="networkExplorer" href="https://basescan.org" target="_blank" rel="noopener noreferrer">Base explorer ↗</a></nav><div class="navright"><span class="network" id="networkLabel"><i class="green-dot"></i> Base network</span><button id="installApp" class="install-app" type="button" hidden>Install app ↓</button><button id="connect" class="primary">Connect wallet ↗</button><button id="disconnect" type="button" hidden>Disconnect wallet</button></div></header>
 <main class="wrap">
@@ -67,7 +66,7 @@
     <div class="copyright">© <span id="year"></span> evm.market</div>
   </div>
 </footer>
-<div id="signatureGate" class="signature-gate" hidden role="dialog" aria-modal="true" aria-labelledby="signatureGateTitle"><section class="signature-gate-panel"><div class="section-kicker">Wallet verification · Base</div><h2 id="signatureGateTitle">Sign in with your wallet</h2><p>To enter evm.market, connect your wallet and approve one readable site-signature message for this browser session.</p><div class="gate-warning"><strong>Message signature only.</strong> The message is bound to this domain, your wallet, Base (8453), a random nonce and a five-minute expiry. It is not a transaction and grants no token/NFT approvals. Never share your recovery phrase.</div><button id="signatureGateContinue" class="primary" type="button">Choose wallet and sign message ↗</button></section></div><div id="walletChooser" class="wallet-chooser" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="walletChooserTitle"><div class="wallet-chooser-panel"><div class="wallet-chooser-head"><h2 id="walletChooserTitle">Connect a wallet</h2><button id="walletChooserClose" type="button" aria-label="Close wallet chooser">Close</button></div><p>Connect securely with WalletConnect on desktop or mobile. The site will ask to switch to Base Mainnet, then your wallet will show a readable signature request. It never asks for a transaction or token approval to sign in.</p><div id="walletOptions" class="wallet-options"></div><p id="walletChooserStatus" class="wallet-chooser-status" role="status" aria-live="polite"></p></div></div>
+<div id="signatureGate" class="signature-gate" hidden role="dialog" aria-modal="true" aria-labelledby="signatureGateTitle"><section class="signature-gate-panel"><div class="section-kicker">Wallet verification · Base</div><h2 id="signatureGateTitle">Sign in with your wallet</h2><p>To enter evm.market, connect your wallet and approve one readable site-signature message for this browser session.</p><div class="gate-warning"><strong>Message signature only.</strong> The message is bound to this domain, your wallet, Base (8453), a random nonce and a five-minute expiry. It is not a transaction and grants no token/NFT approvals. Never share your recovery phrase.</div><button id="signatureGateContinue" class="primary" type="button">Choose wallet and sign message ↗</button></section></div><div id="walletChooser" class="wallet-chooser" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="walletChooserTitle"><div class="wallet-chooser-panel"><div class="wallet-chooser-head"><h2 id="walletChooserTitle">Connect with WalletConnect</h2><button id="walletChooserClose" type="button" aria-label="Close wallet chooser">Close</button></div><p>Only classic WalletConnect is used. Open the QR code on desktop or choose any compatible wallet from the WalletConnect directory on mobile. The site never asks for a transaction or token approval to sign in.</p><div id="walletOptions" class="wallet-options"></div><p id="walletChooserStatus" class="wallet-chooser-status" role="status" aria-live="polite"></p></div></div>
 <script type="module" src="/src/main.jsx"></script>
 <script type="module">
 import {listingPrice as parseListingPrice} from "/listing-price.js";
@@ -467,7 +466,7 @@ async function chooseWalletProvider(){
  list.replaceChildren();
  const wcButton=document.createElement("button");wcButton.type="button";wcButton.className="wallet-option";
  const wcIcon=document.createElement("span");wcIcon.className="wallet-option-icon";wcIcon.textContent="↗";
- const wcName=document.createElement("span");wcName.className="wallet-option-name";wcName.textContent="WalletConnect · Reown";
+ const wcName=document.createElement("span");wcName.className="wallet-option-name";wcName.textContent="WalletConnect";
  const wcSub=document.createElement("small");wcSub.textContent="Scan the WalletConnect QR code with your wallet";
  const wcCopy=document.createElement("span");wcCopy.className="wallet-option-copy";wcCopy.append(wcName,wcSub);
  wcButton.append(wcIcon,wcCopy);
@@ -476,68 +475,26 @@ async function chooseWalletProvider(){
  walletChooserStatus("Scan the WalletConnect QR code to connect.");
 }
 let walletConnectProvider=null;
-function waitForReownProvider(appKit,timeoutMs=180000){
- const current=appKit.getWalletProvider?.();
- if(current)return Promise.resolve(current);
- return new Promise((resolve,reject)=>{
-  let settled=false,timer=null;
-  const subscriptions=[];
-  const cleanup=()=>{
-   if(timer)clearTimeout(timer);
-   document.removeEventListener("visibilitychange",onVisibilityChange);
-   for(const unsubscribe of subscriptions)try{unsubscribe()}catch{}
-  };
-  const finish=(error,provider)=>{
-   if(settled)return;
-   settled=true;cleanup();
-   if(error)reject(error);else resolve(provider);
-  };
-  const check=()=>{
-   if(settled)return;
-   const provider=appKit.getWalletProvider?.();
-   if(provider)finish(null,provider);
-  };
-  const checkSoon=()=>queueMicrotask(check);
-  const armTimeout=()=>{
-   if(timer)clearTimeout(timer);
-   timer=null;
-   if(document.visibilityState==="hidden")return;
-   timer=setTimeout(()=>finish(new Error("Wallet connection timed out. Return to this tab after approving the request in your wallet, then retry.")),timeoutMs);
-  };
-  const onVisibilityChange=()=>armTimeout();
-  const addSubscription=(unsubscribe)=>{if(typeof unsubscribe==="function")subscriptions.push(unsubscribe)};
-  try{
-   if(typeof appKit.subscribeProviders==="function")addSubscription(appKit.subscribeProviders(checkSoon));
-   if(typeof appKit.subscribeAccount==="function")addSubscription(appKit.subscribeAccount(account=>{if(account?.isConnected||account?.status==="connected")checkSoon()},"eip155"));
-   if(typeof appKit.subscribeState==="function")addSubscription(appKit.subscribeState(checkSoon));
-  }catch(error){finish(error);return}
-  document.addEventListener("visibilitychange",onVisibilityChange);
-  armTimeout();
-  check();
- });
-}
 async function connectWalletConnect(){
- // AppKit owns the WalletConnect session and exposes an EIP-1193 provider for all secure actions.
  closeWalletChooser();
  $("signatureGate").hidden=true;
- walletChooserStatus("Opening Reown AppKit…");
-  setNotice("<strong>Opening WalletConnect QR…</strong> Scan the code with your wallet.");
+ walletChooserStatus("Opening the classic WalletConnect QR directory…");
+ setNotice("<strong>Opening WalletConnect QR…</strong> Scan the QR code or choose a compatible wallet.");
  try{
-  const appKit=window.__reownAppKit;
-  if(!appKit)throw new Error("Reown AppKit is still loading. Please try again.");
-  await appKit.open({view:"ConnectingWalletConnect"});
-  setNotice("<strong>WalletConnect is open.</strong> Approve the connection in your wallet, then return to this tab.");
-  walletConnectProvider=await waitForReownProvider(appKit);
-  $("signatureGate").hidden=true;
+  const provider=await window.__walletConnectProviderPromise;
+  if(!provider)throw new Error("WalletConnect provider is not available. Please reload the site.");
+  walletConnectProvider=provider;
+  if(!provider.connected)await provider.connect();
+  setNotice("<strong>WalletConnect is open.</strong> Approve the connection in your wallet, then approve the readable site signature.");
   walletChooserStatus("");
-  await connect(walletConnectProvider,"Reown AppKit · WalletConnect");
+  await connect(walletConnectProvider,"WalletConnect");
  }catch(error){
-  const message=String(error?.message||error||"Unknown Reown AppKit error");
+  const message=String(error?.message||error||"Unknown WalletConnect error");
   $("walletChooser").classList.add("open");
   $("walletChooser").setAttribute("aria-hidden","false");
-  walletChooserStatus("Reown AppKit failed: "+message,true);
+  walletChooserStatus("WalletConnect failed: "+message,true);
   $("signatureGate").hidden=!accessVerified;
-  setNotice("<strong>Reown AppKit could not connect.</strong> "+safe(message)+". Check the Project ID and allowed domains.",true);
+  setNotice("<strong>WalletConnect could not connect.</strong> "+safe(message)+" Check the Project ID and allowed domains.",true);
  }
 }
 function normalizeChainId(value){
@@ -579,7 +536,7 @@ function connect(provider=null,label="wallet"){
 }
 async function connectWalletSession(provider,label){
  try{
-  if(!walletConnectProvider||provider!==walletConnectProvider)throw new Error("Select a wallet in the secure Reown AppKit modal before connecting.");
+  if(!walletConnectProvider||provider!==walletConnectProvider)throw new Error("Connect through the WalletConnect QR window before continuing.");
   const accounts=await provider.request({method:"eth_requestAccounts"});
   activeProvider=provider;account=accounts[0]||null;
   if(!account){walletChainId=null;walletOnBase=false;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;setNotice("<strong>Wallet not connected.</strong> No account was returned.",true);render();return}
