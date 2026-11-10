@@ -146,3 +146,10 @@ test("English live market dashboard shows the five requested metrics for every c
   assert.match(html, /Floor-based estimate/);
   assert.match(html, /setInterval\(\(\)=>\{if\(document\.visibilityState==="visible"\)refreshMarketDashboard\(\)\},60000\)/);
 });
+
+
+test("wallet connection requests no personal message signature", () => {
+  assert.match(html, /provider\.request\(\{method:"eth_requestAccounts"\}\)/);
+  assert.doesNotMatch(html, /personal_sign|signWalletChallenge/);
+  assert.match(html, /No message signature or transaction was requested to connect/);
+});
