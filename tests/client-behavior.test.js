@@ -160,3 +160,9 @@ test("wallet connection requests a readable domain-bound personal message signat
   assert.match(html, /window\.__verifyMessage/);
   assert.match(html, /The site signature was approved/);
 });
+
+test("disconnect closes the WalletConnect session instead of only clearing local state", () => {
+  assert.match(html, /provider\?\.connected&&typeof provider\.disconnect===\"function\"/);
+  assert.match(html, /await provider\.disconnect\(\)/);
+  assert.match(html, /WalletConnect disconnected/);
+});

@@ -562,11 +562,13 @@ function attachWalletListeners(provider){
 }
 $("connect").addEventListener("click",()=>chooseWalletProvider().catch(error=>setNotice("<strong>Could not open wallet chooser.</strong> "+safe(error?.message||error),true)));
 $("signatureGateContinue").addEventListener("click",()=>chooseWalletProvider());$("signatureGate").hidden=!accessVerified;
-function disconnectWallet(){
- account=null;walletChainId=null;walletOnBase=false;activeProvider=null;accessVerified=false;verifiedAccount=null;$("signatureGate").hidden=true;ownershipCache.clear();
+async function disconnectWallet(){
+ const provider=walletConnectProvider||activeProvider;
+ try{if(provider?.connected&&typeof provider.disconnect==="function")await provider.disconnect()}catch(error){setNotice("<strong>WalletConnect session could not be closed cleanly.</strong> "+safe(error?.message||error)+" The local session was cleared.",true)}
+ walletConnectProvider=null;account=null;walletChainId=null;walletOnBase=false;activeProvider=null;accessVerified=false;verifiedAccount=null;signatureVerifierPromise=null;$("signatureGate").hidden=true;ownershipCache.clear();
  $("connect").textContent="Connect wallet ↗";$("disconnect").hidden=true;
  closeWalletChooser();
- setNotice("<strong>Wallet disconnected from this site.</strong> This clears the app’s local connection state; it does not revoke the site’s permissions in your wallet. Manage connected-site permissions in your wallet if you want to revoke them.");
+ setNotice("<strong>WalletConnect disconnected.</strong> The WalletConnect session was closed and this site no longer has an active wallet connection.");
  if(ownedByMe)load(true,true);else render();
 }
 $("disconnect").addEventListener("click",disconnectWallet);
