@@ -125,3 +125,10 @@ test("live price controls load the collection-wide feed and remain Base-only", (
   assert.match(html, /priceMinFilter"\)\.disabled=polygon/);
   assert.match(html, /renderItems\.push\(\{token_id:String\(id\),name:"Token #"\+String\(id\),metadata:\{\}\}\)/);
 });
+
+test("enables owner listing controls for Base collections and excludes NodeMonkes Polygon", () => {
+  assert.match(html, /function supportsListingActions\(contract\)\{return !isPolygonCollection\(contract\)\}/);
+  assert.match(html, /function loadWalletListings\(contract,id\)/);
+  assert.match(html, /Unlist my Seaport listing/);
+  assert.match(html, /owner===true&&supportsListingActions\(contract\)/);
+});

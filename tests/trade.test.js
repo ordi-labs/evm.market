@@ -618,24 +618,13 @@ function polygonSignedOrderBody(side = "listing", currency = side === "listing" 
   return body;
 }
 
-test("builds Polygon listing actions with chain-qualified NFT id, native zero-address or Polygon WETH", async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => {
-    assert.ok(String(url).endsWith("/api/v2/listings/actions"));
-    const payload = JSON.parse(init.body);
-    assert.equal(payload.items[0].chain, "polygon");
-    assert.equal(payload.items[0].nft_id, "polygon/" + POLYGON_CONTRACT + "/1");
-    assert.equal(payload.items[0].price.currency, "0x0000000000000000000000000000000000000000");
-    assert.equal(payload.items[0].contract, POLYGON_CONTRACT);
-    return new Response(JSON.stringify({ steps: [] }), { status: 200 });
-  };
-  try {
-    const response = await onRequest({ request: request("listing-actions", {
-      address: "0x1111111111111111111111111111111111111111",
-      items: [{ nft_id: "polygon/" + POLYGON_CONTRACT + "/1", quantity: 1, price: { currency: "MATIC", amount: "0.05" }, end_time: futureIso(6) }]
-    }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
-    assert.equal(response.status, 200);
-  } finally { globalThis.fetch = originalFetch; }
+test("rejects Polygon listing actions because NodeMonkes Polygon is not listable", async () => {
+  const response = await onRequest({ request: request("listing-actions", {
+    address: "0x1111111111111111111111111111111111111111",
+    items: [{ nft_id: "polygon/" + POLYGON_CONTRACT + "/1", quantity: 1, price: { currency: "MATIC", amount: "0.05" }, end_time: futureIso(6) }]
+  }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /disabled for NodeMonkes Polygon/);
 });
 
 test("builds Polygon offer actions with Polygon chain, NFT id and canonical Polygon WETH", async () => {
@@ -658,7 +647,7 @@ test("builds Polygon offer actions with Polygon chain, NFT id and canonical Poly
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test("posts validated Polygon Seaport listing and offer orders to the Polygon paths", async () => {
+test("posts validated Polygon Seaport offers to the Polygon paths", async () => {
   const originalFetch = globalThis.fetch;
   const seen = [];
   globalThis.fetch = async (url, init) => {
@@ -666,12 +655,9 @@ test("posts validated Polygon Seaport listing and offer orders to the Polygon pa
     return new Response(JSON.stringify({ order_hash: HASH }), { status: 200 });
   };
   try {
-    for (const [action, side] of [["post-listing", "listing"], ["post-offer", "offer"]]) {
-      const response = await onRequest({ request: request(action, polygonSignedOrderBody(side), { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key", POLYGON_SEAPORT_ADDRESS: SEAPORT } });
-      assert.equal(response.status, 200);
-    }
-    assert.ok(seen[0].url.endsWith("/api/v2/orders/polygon/seaport/listings"));
-    assert.ok(seen[1].url.endsWith("/api/v2/orders/polygon/seaport/offers"));
+    const response = await onRequest({ request: request("post-offer", polygonSignedOrderBody("offer"), { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key", POLYGON_SEAPORT_ADDRESS: SEAPORT } });
+    assert.equal(response.status, 200);
+    assert.ok(seen[0].url.endsWith("/api/v2/orders/polygon/seaport/offers"));
   } finally { globalThis.fetch = originalFetch; }
 });
 
@@ -763,27 +749,10 @@ test("uses Polygon WETH for WETH listing fulfillment instead of native currency"
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test("requests Polygon Seaport cancellation only after verifying matching chain, maker, NFT and protocol", async () => {
-  const originalFetch = globalThis.fetch;
-  let cancelPath;
-  globalThis.fetch = async (url, init = {}) => {
-    const target = String(url);
-    if (target.endsWith("/cancel/actions")) {
-      cancelPath = target;
-      return new Response(JSON.stringify({ steps: [] }), { status: 200 });
-    }
-    assert.ok(target.endsWith("/api/v2/orders/chain/polygon/protocol/" + SEAPORT + "/" + HASH));
-    return new Response(JSON.stringify({ order: {
-      chain: "polygon", status: "ACTIVE", order_hash: HASH, protocol_address: SEAPORT,
-      asset: { contract: POLYGON_CONTRACT, identifier: "1" }, remaining_quantity: 1,
-      protocol_data: { parameters: { offerer: "0x1111111111111111111111111111111111111111" } }
-    } }), { status: 200 });
-  };
-  try {
-    const response = await onRequest({ request: request("cancel-actions", {
-      address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: SEAPORT
-    }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
-    assert.equal(response.status, 200);
-    assert.ok(cancelPath.endsWith("/cancel/actions"));
-  } finally { globalThis.fetch = originalFetch; }
+test("rejects Polygon unlisting because NodeMonkes Polygon is not listable", async () => {
+  const response = await onRequest({ request: request("cancel-actions", {
+    address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: SEAPORT
+  }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /disabled for NodeMonkes Polygon/);
 });

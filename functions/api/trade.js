@@ -149,6 +149,7 @@ function decimalAmountToUnits(value) {
 function validateSignedOrder(body, asset, side, env) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A signed order object is required.");
   const { contract, tokenId, network } = asset;
+  if (side === "listing" && network.chain === "polygon") throw new Error("Listing and unlisting are disabled for NodeMonkes Polygon.");
   const parameters = body.parameters;
   const signature = body.signature;
   const protocolAddress = String(body.protocol_address || body.protocolAddress || "").toLowerCase();
@@ -259,6 +260,7 @@ function listingPriceCurrency(value, network) {
 
 function validateListingActionsRequest(body, asset) {
   const network = asset.network;
+  if (network.chain === "polygon") throw new Error("Listing and unlisting are disabled for NodeMonkes Polygon.");
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A listing request object is required.");
   const address = String(body.address || "").trim();
   if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new Error("A valid connected seller wallet address is required.");
@@ -317,6 +319,7 @@ function validateOfferActionsRequest(body, asset) {
 }
 
 function validateCancellationRequest(body, network, env) {
+  if (network.chain === "polygon") throw new Error("Listing and unlisting are disabled for NodeMonkes Polygon.");
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A cancellation request object is required.");
   const address = String(body.address || "").trim();
   const orderHash = String(body.order_hash || body.orderHash || "").trim();
