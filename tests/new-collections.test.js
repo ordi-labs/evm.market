@@ -10,7 +10,7 @@ import {onRequest as trade} from "../functions/api/trade.js";
 const COLLECTIONS = [
   {name: "Base Oddities", key: "baseoddities", contract: "0x8b245812b0755b7e0259395beca3e591734660fb", slug: "base-oddities"},
   {name: "Pixel Nomads", key: "pixelnomads", contract: "0x13ef1ea93602873d11a92bc434c8ed580487b2dc", slug: "pixel-nomads-783494962"},
-  {name: "Neon Relics", key: "neonrelics", contract: "0x64d94e792076da8df31d06e15e7ab4e152999c06", slug: "neon-relics-567749795"}
+  {name: "Neon Relics", key: "neonrelics", contract: "0x64d94e792076da8df31d06e15e7ab4e152999c06", slug: ""}
 ];
 const API_KEY = "private-test-key";
 const WALLET = "0x1111111111111111111111111111111111111111";
