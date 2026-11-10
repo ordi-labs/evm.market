@@ -338,6 +338,29 @@ test("serves active NodeMonkes Polygon item listings from Rarible with POL price
   assert.equal(data.orders[0].take.value, "150000000000000000");
 });
 
+test("falls back to OpenSea best listings for Polygon NFT cards when Rarible is not configured", async t => {
+  const originalFetch = globalThis.fetch; const requested = [];
+  globalThis.fetch = async url => {
+    const parsed = new URL(String(url)); requested.push(parsed);
+    if (parsed.pathname === "/api/v2/chain/polygon/contract/" + POLYGON_CONTRACT + "/nfts") {
+      return new Response(JSON.stringify({nfts: [{collection: "nodemonkes-polygon"}]}), {status: 200});
+    }
+    assert.equal(parsed.pathname, "/api/v2/listings/collection/nodemonkes-polygon/nfts/7/best");
+    return new Response(JSON.stringify({order: {
+      status: "ACTIVE", order_hash: "opensea-polygon-order-7", chain: "polygon",
+      asset: {contract: POLYGON_CONTRACT, identifier: "7"},
+      price: {current: {value: "150000000000000000", decimals: 18, currency: "ETH"}}
+    }}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequest({request: request("listings", undefined, {method: "GET", contract: POLYGON_CONTRACT, tokenId: "7"}), env: {OPENSEA_API_KEY: "test-key"}});
+  assert.equal(response.status, 200);
+  assert.equal(requested.length, 2);
+  const data = await response.json();
+  assert.equal(data.source, "opensea");
+  assert.equal(data.orders[0].order_hash, "opensea-polygon-order-7");
+});
+
 test("validates collection listing contract and page limit before contacting OpenSea", async () => {
   const invalidContract = await onRequest({
     request: new Request("https://market.test/api/trade?action=collection-listings&contract=0x1111111111111111111111111111111111111111"),
@@ -852,5 +875,29 @@ test("uses Rarible Polygon floor history when OpenSea has no floor and estimates
   assert.equal(data.source, "opensea+rarible-floor");
   assert.deepEqual(data.floorPrice, {value: 0.2, currency: "POL"});
   assert.deepEqual(data.marketCap, {value: 2000, currency: "POL", estimated: true});
+  assert.equal(requested.length, 3);
+});
+
+test("uses the cheapest OpenSea Polygon listing as a POL floor fallback and calculates market cap", async t => {
+  const originalFetch = globalThis.fetch; const requested = [];
+  globalThis.fetch = async url => {
+    const parsed = new URL(String(url)); requested.push(parsed);
+    if (parsed.pathname === "/api/v2/chain/polygon/contract/" + POLYGON_CONTRACT + "/nfts") {
+      return new Response(JSON.stringify({nfts: [{collection: "nodemonkes-polygon"}]}), {status: 200});
+    }
+    if (parsed.pathname === "/api/v2/collections/nodemonkes-polygon/stats") {
+      return new Response(JSON.stringify({total: {volume: 99.5, volume_symbol: "POL", num_owners: 125}, intervals: []}), {status: 200});
+    }
+    assert.equal(parsed.pathname, "/api/v2/listings/collection/nodemonkes-polygon/best");
+    assert.equal(parsed.searchParams.get("limit"), "50");
+    return new Response(JSON.stringify({listings: [{price: {current: {value: "150000000000000000", decimals: 18, currency: "ETH"}}}]}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequest({request: request("collection-stats", undefined, {method: "GET", contract: POLYGON_CONTRACT}), env: {OPENSEA_API_KEY: "test-key"}});
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.source, "opensea+listings-floor");
+  assert.deepEqual(data.floorPrice, {value: 0.15, currency: "POL"});
+  assert.deepEqual(data.marketCap, {value: 1500, currency: "POL", estimated: true});
   assert.equal(requested.length, 3);
 });

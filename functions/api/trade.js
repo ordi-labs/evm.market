@@ -1,3 +1,5 @@
+import { listingPrice as parseListingPrice } from "../../listing-price.js";
+
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
@@ -153,6 +155,50 @@ async function raribleCollectionFloor(env, contract) {
     const data = await response.json();
     return latestRaribleFloorValue(data);
   } catch { return null; }
+}
+
+async function openSeaBestCollectionFloor(collectionSlug, apiKey) {
+  try {
+    const response = await fetch(OPENSEA_API + "/listings/collection/" + encodeURIComponent(collectionSlug) + "/best?limit=50", { headers: { accept: "application/json", "x-api-key": apiKey } });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const listings = Array.isArray(data.listings) ? data.listings : Array.isArray(data.orders) ? data.orders : [];
+    for (const order of listings) {
+      const price = parseListingPrice(order);
+      if (price) return { value: price.value, currency: price.currency };
+    }
+  } catch { return null; }
+  return null;
+}
+
+async function openSeaPolygonItemListings(env, contract, tokenId) {
+  const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
+  if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
+  let slug = null;
+  try {
+    const response = await fetch(OPENSEA_API + "/chain/polygon/contract/" + encodeURIComponent(contract) + "/nfts?limit=1", { headers: { accept: "application/json", "x-api-key": apiKey } });
+    if (response.ok) {
+      const data = await response.json();
+      slug = (Array.isArray(data.nfts) ? data.nfts : []).map(nft => String(nft.collection || "").trim()).find(Boolean) || null;
+    }
+  } catch { }
+  if (!slug) return json({ orders: [], listings: [], source: "opensea", info: "OpenSea has no indexed collection for this Polygon NFT." });
+  const endpoint = "/listings/collection/" + encodeURIComponent(slug) + "/nfts/" + encodeURIComponent(tokenId) + "/best";
+  let response;
+  try { response = await fetch(OPENSEA_API + endpoint, { headers: { accept: "application/json", "x-api-key": apiKey } }); }
+  catch { return json({ error: "OpenSea Polygon listing request failed." }, 502); }
+  const raw = await response.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { return json({ error: "OpenSea returned invalid Polygon listing data." }, 502); }
+  if (response.status === 404) return json({ orders: [], listings: [], source: "opensea" });
+  if (!response.ok) return json({ error: "OpenSea Polygon listing request failed.", providerStatus: response.status, details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502);
+  const order = data?.order && typeof data.order === "object" ? data.order : data?.orders?.[0] || data?.listings?.[0] || data;
+  const asset = order?.asset || order?.nft || order?.item || {};
+  const contractAddress = String(asset.contract || asset.contract_address || asset.address || "").toLowerCase();
+  const listedTokenId = String(asset.identifier ?? asset.token_id ?? asset.tokenId ?? "");
+  const active = String(order?.status || "ACTIVE").toUpperCase() === "ACTIVE";
+  const orders = active && contractAddress === contract && listedTokenId === tokenId ? [order] : [];
+  return json({ orders, listings: orders, source: "opensea" });
 }
 
 function addUtcMonths(date, months) {
@@ -419,11 +465,18 @@ export async function onRequest({ request, env }) {
     };
     let source = "opensea";
     if (contract === NODEMONKES_POLYGON && (!Number.isFinite(floorValue) || !floorCurrency)) {
-      const raribleFloor = await raribleCollectionFloor(env, contract);
-      if (raribleFloor !== null) {
-        floorValue = raribleFloor;
+      let fallbackFloor = await raribleCollectionFloor(env, contract);
+      if (fallbackFloor !== null) {
+        floorValue = fallbackFloor;
         floorCurrency = "POL";
         source = "opensea+rarible-floor";
+      } else {
+        fallbackFloor = await openSeaBestCollectionFloor(collectionSlug, apiKey);
+        if (fallbackFloor) {
+          floorValue = fallbackFloor.value;
+          floorCurrency = fallbackFloor.currency;
+          source = "opensea+listings-floor";
+        }
       }
     }
     const normalizedFloorCurrency = statsCurrency(floorCurrency);
@@ -543,7 +596,10 @@ export async function onRequest({ request, env }) {
 
   if (request.method === "GET") {
     if (action !== "listings" && action !== "offers") return json({ error: "Unsupported read action." }, 400);
-    if (action === "listings" && asset.network.chain === "polygon") return raribleItemListings(env, asset.contract, asset.tokenId);
+    if (action === "listings" && asset.network.chain === "polygon") {
+      if (!raribleApiKey(env)) return openSeaPolygonItemListings(env, asset.contract, asset.tokenId);
+      return raribleItemListings(env, asset.contract, asset.tokenId);
+    }
     if (!asset.slug) return json(action === "listings" ? { orders: [], listings: [], info: "No OpenSea collection slug is configured for this Polygon collection; listings are unavailable here." } : { orders: [], offers: [], info: "No OpenSea collection slug is configured for this Polygon collection; offers are unavailable here." });
     const endpoint = "/" + action + "/collection/" + asset.slug + "/nfts/" + encodeURIComponent(asset.tokenId) + "/best";
     const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
