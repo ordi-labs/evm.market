@@ -31,11 +31,39 @@ test("refresh explicitly restarts an exhausted but incomplete collection scan", 
   assert.match(html, /scanTraitIndex\(\{contract,restartIncomplete,/);
   assert.match(html, /ensureFullTraitIndex\(contract,\{restartIncomplete:true\}\)/);
 });
-test("classic WalletConnect connects through its QR directory on desktop and mobile", () => {
-  assert.match(html, /window\.__walletConnectProviderPromise/);
-  assert.match(html, /provider\.connect\(\)/);
-  assert.match(html, /Opening the classic WalletConnect QR directory/);
-  assert.doesNotMatch(html, /Reown AppKit/);
+test("Reown opens its Mobile/QR wallet directory and the obsolete chooser is not rendered", async () => {
+  const app = await readFile(new URL("../src/wallet-appkit.js", import.meta.url), "utf8");
+  const loader = await readFile(new URL("../src/main.jsx", import.meta.url), "utf8");
+  assert.match(app, /createAppKit/);
+  assert.match(loader, /import\('\.\/wallet-appkit\.js'\)/);
+  assert.match(html, /appKit\.open\(\{view:"ConnectingWalletConnect"\}\)/);
+  assert.match(html, /Opening Reown Mobile \/ QR Code wallet selector/);
+  assert.doesNotMatch(html, /id="walletChooser"/);
+  assert.doesNotMatch(html, /window\.__walletConnectProviderPromise|classic WalletConnect/);
+});
+test("only a confirmed EIP-1193 WalletConnect account is passed to the marketplace", () => {
+  const start = html.indexOf("function getConnectedReownProvider(appKit){");
+  const end = html.indexOf("function waitForReownProvider(appKit", start);
+  const getConnectedReownProvider = vm.runInNewContext(`${html.slice(start, end)};getConnectedReownProvider`);
+  const provider = {request() {}};
+  const appKit = {
+    getAccount: namespace => namespace === "eip155" ? {isConnected: true, address: "0x1234"} : null,
+    getWalletProviderType: () => "WALLET_CONNECT",
+    getWalletProvider: () => provider
+  };
+  assert.equal(getConnectedReownProvider(appKit), provider);
+  assert.equal(getConnectedReownProvider({...appKit, getAccount: () => ({isConnected: false, address: "0x1234"})}), null);
+  assert.equal(getConnectedReownProvider({...appKit, getWalletProviderType: () => "INJECTED"}), null);
+  assert.equal(getConnectedReownProvider({...appKit, getWalletProvider: () => ({})}), null);
+  assert.match(html, /activeProvider=provider;account=accounts\[0\]\|\|null/);
+  assert.match(html, /const checkedAccount=account,checkedProvider=activeProvider/);
+});
+test("wallet errors with missing or non-string messages are handled safely", () => {
+  const start = html.indexOf("function walletErrorMessage(error,");
+  const end = html.indexOf("function chooseWalletProvider", start);
+  const walletErrorMessage = vm.runInNewContext(`${html.slice(start, end)};walletErrorMessage`);
+  assert.equal(walletErrorMessage({shortMessage: "User rejected"}), "User rejected");
+  assert.equal(walletErrorMessage({message: 17, data: null}), "Wallet connection failed.");
 });
 test("trait catalog retains every array value and its count from collection facets", () => {
   const result = normalizeTraitCatalog({traits:[
@@ -132,13 +160,16 @@ test("enables owner listing controls for Base collections and excludes NodeMonke
   assert.match(html, /Unlist my Seaport listing/);
   assert.match(html, /owner===true&&supportsListingActions\(contract\)/);
 });
-test("wallet connector exposes only classic WalletConnect on Base and Polygon", async () => {
-  const app = await readFile(new URL("../src/main.jsx", import.meta.url), "utf8");
-  assert.match(app, /@walletconnect\/ethereum-provider/);
-  assert.match(app, /chains: \[8453\]/);
-  assert.match(app, /optionalChains: \[137\]/);
-  assert.match(app, /showQrModal: true/);
+test("Reown connector exposes only WalletConnect on Base and Polygon with the live-domain metadata", async () => {
+  const app = await readFile(new URL("../src/wallet-appkit.js", import.meta.url), "utf8");
+  assert.match(app, /@reown\/appkit-adapter-ethers/);
+  assert.match(app, /adapters: \[new EthersAdapter\(\)\]/);
+  assert.match(app, /const networks = \[base, polygon\]/);
+  assert.match(app, /enableInjected: false/);
+  assert.match(app, /allWallets: 'SHOW'/);
+  assert.match(app, /connectMethodsOrder: \['wallet'\]/);
   assert.match(app, /const appUrl = window\.location\.origin/);
+  assert.doesNotMatch(app, /@walletconnect\/ethereum-provider|showQrModal/);
   assert.match(html, /querySelectorAll\("\[data-collection\]"\).*addEventListener\("click",async/);
   assert.match(html, /await ensureWalletForContract\(COLLECTIONS\[selected\]\.contract\)/);
 });

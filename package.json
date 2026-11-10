@@ -9,11 +9,10 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@walletconnect/ethereum-provider": "^2.26.0",
+    "@reown/appkit": "1.8.24",
+    "@reown/appkit-adapter-ethers": "1.8.24",
     "buffer": "^6.0.3",
-    "ethers": "^6.17.0",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "ethers": "^6.17.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.2.1",
