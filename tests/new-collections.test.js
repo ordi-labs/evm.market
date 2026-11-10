@@ -8,6 +8,7 @@ import {onRequestGet as getOwned} from "../functions/api/owned.js";
 import {onRequest as trade} from "../functions/api/trade.js";
 
 const COLLECTIONS = [
+  {name: "NEXUS//LEGENDS", key: "nexuslegends", contract: "0x353a98c65b427294412fae0187e551698eb1c8d6", slug: "nexus-legends-603687376"},
   {name: "Base Oddities", key: "baseoddities", contract: "0x8b245812b0755b7e0259395beca3e591734660fb", slug: "base-oddities"},
   {name: "Pixel Nomads", key: "pixelnomads", contract: "0x13ef1ea93602873d11a92bc434c8ed580487b2dc", slug: "pixel-nomads-783494962"},
   {name: "Neon Relics", key: "neonrelics", contract: "0x64d94e792076da8df31d06e15e7ab4e152999c06", slug: ""}
@@ -26,10 +27,10 @@ function signedListingBody(contract) {
     startTime: String(now), endTime: String(Math.floor(Date.parse(futureIso(6)) / 1000))}, protocol_address: SEAPORT, signature: "0x" + "1".repeat(130)};
 }
 
-test("the home page selects verified Base collections and reflects the eight-collection supply", async () => {
+test("the home page selects verified Base collections and reflects the nine-collection supply", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   for (const collection of COLLECTIONS) { assert.ok(html.includes(`data-collection="${collection.key}"`)); assert.ok(html.includes(`contract:"${collection.contract}",slug:"${collection.slug}",network:"base"`)); }
-  assert.match(html, /80,000 ITEMS/); assert.match(html, /<strong>80,000<\/strong><span>Collection supply<\/span>/); assert.match(html, /<strong>08<\/strong><span>Curated collections<\/span>/);
+  assert.match(html, /90,000 ITEMS/); assert.match(html, /<strong>90,000<\/strong><span>Collection supply<\/span>/); assert.match(html, /<strong>09<\/strong><span>Curated collections<\/span>/);
 });
 
 test("both collections have OpenSea NFT feeds, global trait-scan pages, and exact trait filtering", async t => {
@@ -51,7 +52,7 @@ test("Neon Relics uses the OpenSea API for live data and keeps NFT actions insid
   const originalFetch = globalThis.fetch; let requested;
   globalThis.fetch = async url => { requested = new URL(String(url)); return new Response(JSON.stringify({nfts: [{identifier: "1", name: "Neon Relics #1", traits: [{trait_type: "Aura", value: "Pulse Halo"}]}], next: null}), {status: 200}); };
   t.after(() => { globalThis.fetch = originalFetch; });
-  const contract = COLLECTIONS[2].contract;
+  const contract = COLLECTIONS.find(collection => collection.key === "neonrelics").contract;
   let response = await getNfts({request: new Request(requestUrl("/api/nfts", {contract, limit: 2})), env: {OPENSEA_API_KEY: API_KEY}});
   assert.equal(response.status, 200); assert.equal(requested.pathname, `/api/v2/chain/base/contract/${contract}/nfts`); assert.equal((await response.json()).source, "opensea");
   response = await getNfts({request: new Request(requestUrl("/api/nfts", {contract, scanTraits: 1, limit: 50})), env: {OPENSEA_API_KEY: API_KEY}});

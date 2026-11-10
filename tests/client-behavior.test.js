@@ -77,12 +77,12 @@ test("owned view is exposed as a wallet-scoped mode for all configured collectio
 });
 
 
-test("CryptoPunks [Base] and NodeMonkes Polygon are selectable with verified contracts", () => {
+test("CryptoPunks [Base], Nexus//Legends and NodeMonkes Polygon are selectable with verified contracts", () => {
   assert.match(html, /data-collection="cryptopunksbase"/);
   assert.match(html, /name:"CryptoPunks \[Base\]",contract:"0x18d91b5597f1a7227d2960945c9a1417f0ff721d",slug:"cryptopunks-base",network:"base"/);
   assert.match(html, /data-collection="nodemonkespolygon"/);
   assert.match(html, /name:"NodeMonkes \[Polygon\]",contract:"0xdf264d5da8dfaa41fa2e634afead44935af2ad66",slug:"",network:"polygon"/);
-  assert.match(html, /Eight collections/);
+  assert.match(html, /Nine collections/);
   assert.match(html, /data-collection="neonrelics"/);
   assert.match(html, /name:"Neon Relics",contract:"0x64d94e792076da8df31d06e15e7ab4e152999c06",slug:"",network:"base"/);
   assert.match(html, /usesExternalMarketplace/);

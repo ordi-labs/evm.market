@@ -2,13 +2,14 @@ const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
+const NEXUS_LEGENDS = "0x353a98c65b427294412fae0187e551698eb1c8d6";
 const NEON_RELICS = "0x64d94e792076da8df31d06e15e7ab4e152999c06";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
 const BASE_ODDITIES = "0x8b245812b0755b7e0259395beca3e591734660fb";
 const PIXEL_NOMADS = "0x13ef1ea93602873d11a92bc434c8ed580487b2dc";
-const COLLECTION_SLUGS = new Map([[PUNKS,"punks-base-1"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[NEON_RELICS,"neon-relics-567749795"],[BASE_ODDITIES,"base-oddities"],[PIXEL_NOMADS,"pixel-nomads-783494962"],[CRYPTOPUNKS_BASE,"cryptopunks-base"]]);
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
-const OPENSEA_PRIMARY = new Set([BYTEBEASTS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE]);
+const COLLECTION_SLUGS = new Map([[PUNKS,"punks-base-1"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[NEXUS_LEGENDS,"nexus-legends-603687376"],[NEON_RELICS,"neon-relics-567749795"],[BASE_ODDITIES,"base-oddities"],[PIXEL_NOMADS,"pixel-nomads-783494962"],[CRYPTOPUNKS_BASE,"cryptopunks-base"]]);
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, NEXUS_LEGENDS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
+const OPENSEA_PRIMARY = new Set([BYTEBEASTS, NEXUS_LEGENDS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE]);
 
 const json = (data, status = 200, forceRefresh = false) => {
   const headers = {
@@ -384,7 +385,7 @@ export async function onRequestGet({request, env}) {
     }
   }
 
-  // BYTEBEASTS and CryptoPunks [Base] use OpenSea as their authoritative collection feed.
+  // BYTEBEASTS, Nexus//Legends and CryptoPunks [Base] use OpenSea as their authoritative collection feed.
   if (OPENSEA_PRIMARY.has(contract)) {
     if (!openSeaKey) {
       return json({

@@ -21,8 +21,8 @@ test("rejects unsupported contracts and malformed wallet addresses", async () =>
   assert.equal(malformed.status, 400);
 });
 
-test("accepts all eight configured collection contracts", async () => {
-  for (const contract of [CONTRACT, "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "0x7325654c657520e30c56a04225a3d9acdf895e55", "0x64d94e792076da8df31d06e15e7ab4e152999c06", "0x8b245812b0755b7e0259395beca3e591734660fb", "0x13ef1ea93602873d11a92bc434c8ed580487b2dc", "0x18d91b5597f1a7227d2960945c9a1417f0ff721d", "0xdf264d5da8dfaa41fa2e634afead44935af2ad66"]) {
+test("accepts all nine configured collection contracts", async () => {
+  for (const contract of [CONTRACT, "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "0x7325654c657520e30c56a04225a3d9acdf895e55", "0x353a98c65b427294412fae0187e551698eb1c8d6", "0x64d94e792076da8df31d06e15e7ab4e152999c06", "0x8b245812b0755b7e0259395beca3e591734660fb", "0x13ef1ea93602873d11a92bc434c8ed580487b2dc", "0x18d91b5597f1a7227d2960945c9a1417f0ff721d", "0xdf264d5da8dfaa41fa2e634afead44935af2ad66"]) {
     const response = await onRequestGet({request: new Request("https://site.test/api/owned?contract=" + contract + "&owner=" + WALLET), env: {}});
     assert.equal(response.status, 503);
     assert.match((await response.json()).error, /Alchemy NFT API/);

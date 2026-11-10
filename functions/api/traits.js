@@ -3,6 +3,7 @@ const COLLECTIONS = new Map([
   ["0xb9110ba3266f4983193c0d5f55c792a94368af28", "punks-base-1"],
   ["0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "nodemonkes"],
   ["0x7325654c657520e30c56a04225a3d9acdf895e55", "bytebeasts-base"],
+  ["0x353a98c65b427294412fae0187e551698eb1c8d6", "nexus-legends-603687376"],
   ["0x64d94e792076da8df31d06e15e7ab4e152999c06", "neon-relics-567749795"],
   ["0x8b245812b0755b7e0259395beca3e591734660fb", "base-oddities"],
   ["0x13ef1ea93602873d11a92bc434c8ed580487b2dc", "pixel-nomads-783494962"],
