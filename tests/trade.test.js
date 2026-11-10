@@ -756,3 +756,44 @@ test("rejects Polygon unlisting because NodeMonkes Polygon is not listable", asy
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /disabled for NodeMonkes Polygon/);
 });
+
+test("serves normalized OpenSea floor, 24h volume, total volume, holders and floor-cap estimate", async t => {
+  const originalFetch = globalThis.fetch; let requested;
+  globalThis.fetch = async url => { requested = new URL(String(url)); return new Response(JSON.stringify({
+    total: {floor_price: 0.025, floor_price_symbol: "ETH", volume: 77.5, volume_symbol: "ETH", num_owners: 421},
+    intervals: [{interval: "one_day", volume: 1.25, volume_symbol: "ETH", sales: 3}]
+  }), {status: 200}); };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequest({request: request("collection-stats", undefined, {method: "GET"}), env: {OPENSEA_API_KEY: "test-key"}});
+  assert.equal(response.status, 200);
+  assert.equal(requested.pathname, "/api/v2/collections/punks-base-1/stats");
+  const data = await response.json();
+  assert.deepEqual(data.floorPrice, {value: 0.025, currency: "ETH"});
+  assert.deepEqual(data.volume24h, {value: 1.25, currency: "ETH"});
+  assert.deepEqual(data.totalVolume, {value: 77.5, currency: "ETH"});
+  assert.equal(data.holders, 421);
+  assert.deepEqual(data.marketCap, {value: 250, currency: "ETH", estimated: true});
+});
+
+test("uses Rarible daily and all-time Polygon stats for floor, volume, supply and holders", async t => {
+  const originalFetch = globalThis.fetch; const requested = [];
+  globalThis.fetch = async url => {
+    const parsed = new URL(String(url)); requested.push(parsed);
+    const period = parsed.searchParams.get("period");
+    const row = {id: "POLYGON:" + POLYGON_CONTRACT, volumeNative: {currency: "POL", value: period === "D1" ? 2.5 : 99.5}, floorPrice: {currency: "POL", value: 0.15}, totalItemSupply: 10000, ownersCount: 125};
+    return new Response(JSON.stringify({result: [row]}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequest({request: request("collection-stats", undefined, {method: "GET", contract: POLYGON_CONTRACT}), env: {RARIBLE_API_KEY: "rarible-test-key"}});
+  assert.equal(response.status, 200);
+  assert.equal(requested.length, 2);
+  assert.ok(requested.every(url => url.pathname === "/v0.1/data/rankings/collections/volume"));
+  assert.ok(requested.every(url => url.searchParams.get("blockchain") === "POLYGON"));
+  assert.deepEqual(new Set(requested.map(url => url.searchParams.get("period"))), new Set(["D1", "ALL"]));
+  const data = await response.json();
+  assert.deepEqual(data.floorPrice, {value: 0.15, currency: "POL"});
+  assert.deepEqual(data.volume24h, {currency: "POL", value: 2.5});
+  assert.deepEqual(data.totalVolume, {currency: "POL", value: 99.5});
+  assert.equal(data.holders, 125);
+  assert.deepEqual(data.marketCap, {value: 1500, currency: "POL", estimated: true});
+});

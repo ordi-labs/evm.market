@@ -336,6 +336,61 @@ export async function onRequest({ request, env }) {
 
   const url = new URL(request.url);
   const action = url.searchParams.get("action") || (request.method === "POST" ? "post-listing" : "listings");
+  if (request.method === "GET" && action === "collection-stats") {
+    const contract = String(url.searchParams.get("contract") || "").toLowerCase();
+    const collection = COLLECTIONS.get(contract);
+    if (!collection) return json({ error: "Unsupported collection contract." }, 400);
+    if (contract === NODEMONKES_POLYGON) {
+      const apiKey = raribleApiKey(env);
+      if (!apiKey) return json({ error: "Rarible API is not configured on the server." }, 503);
+      const getRariblePeriod = async period => {
+        const params = new URLSearchParams({ blockchain: "POLYGON", ids: "POLYGON:" + contract, period, limit: "1" });
+        const response = await fetch(RARIBLE_API + "/data/rankings/collections/volume?" + params, { headers: { accept: "application/json", "x-api-key": apiKey } });
+        const raw = await response.text();
+        let data;
+        try { data = raw ? JSON.parse(raw) : {}; } catch { throw new Error("Rarible returned invalid statistics data."); }
+        if (!response.ok) throw new Error("Rarible statistics request failed (HTTP " + response.status + ").");
+        const rows = Array.isArray(data.result) ? data.result : [];
+        return rows.find(row => String(row.id || "").toUpperCase() === "POLYGON:" + contract.toUpperCase()) || rows[0] || null;
+      };
+      try {
+        const [daily, allTime] = await Promise.all([getRariblePeriod("D1"), getRariblePeriod("ALL")]);
+        const floor = daily?.floorPrice || allTime?.floorPrice || null;
+        const totalSupply = Number(allTime?.totalItemSupply ?? daily?.totalItemSupply ?? 10000);
+        const floorValue = Number(floor?.value);
+        return json({
+          source: "rarible", updatedAt: new Date().toISOString(),
+          floorPrice: Number.isFinite(floorValue) && floor ? { value: floorValue, currency: floor.currency } : null,
+          volume24h: daily?.volumeNative || null,
+          totalVolume: allTime?.volumeNative || null,
+          holders: Number.isFinite(Number(allTime?.ownersCount ?? daily?.ownersCount)) ? Number(allTime?.ownersCount ?? daily?.ownersCount) : null,
+          totalSupply,
+          marketCap: Number.isFinite(floorValue) && floor && Number.isFinite(totalSupply) ? { value: floorValue * totalSupply, currency: floor.currency, estimated: true } : null
+        });
+      } catch (error) { return json({ error: error.message || "Rarible statistics are unavailable." }, 502); }
+    }
+    const apiKey = String(env.OPENSEA_API_KEY || env.OPENSEA_API || "").trim();
+    if (!apiKey) return json({ error: "OpenSea API is not configured on the server." }, 503);
+    if (!collection.slug) return json({ error: "No verified OpenSea collection slug is configured." }, 404);
+    let response;
+    try { response = await fetch(OPENSEA_API + "/collections/" + encodeURIComponent(collection.slug) + "/stats", { headers: { accept: "application/json", "x-api-key": apiKey } }); }
+    catch { return json({ error: "OpenSea statistics request failed." }, 502); }
+    const raw = await response.text();
+    let data;
+    try { data = raw ? JSON.parse(raw) : {}; } catch { return json({ error: "OpenSea returned invalid statistics data." }, 502); }
+    if (!response.ok) return json({ error: "OpenSea statistics request failed.", providerStatus: response.status, details: data?.errors || data?.detail || data?.message || null }, response.status === 429 ? 429 : 502);
+    const total = data.total || {}, day = (Array.isArray(data.intervals) ? data.intervals : []).find(interval => interval.interval === "one_day") || {};
+    const floorValue = Number(total.floor_price), totalSupply = 10000;
+    return json({
+      source: "opensea", updatedAt: new Date().toISOString(),
+      floorPrice: Number.isFinite(floorValue) && total.floor_price_symbol ? { value: floorValue, currency: total.floor_price_symbol } : null,
+      volume24h: Number.isFinite(Number(day.volume)) && day.volume_symbol ? { value: Number(day.volume), currency: day.volume_symbol } : null,
+      totalVolume: Number.isFinite(Number(total.volume)) && total.volume_symbol ? { value: Number(total.volume), currency: total.volume_symbol } : null,
+      holders: Number.isFinite(Number(total.num_owners)) ? Number(total.num_owners) : null,
+      totalSupply,
+      marketCap: Number.isFinite(floorValue) && total.floor_price_symbol ? { value: floorValue * totalSupply, currency: total.floor_price_symbol, estimated: true } : null
+    });
+  }
   if (request.method === "GET" && action === "collection-listings") {
     const contract = String(url.searchParams.get("contract") || "").toLowerCase();
     const collection = COLLECTIONS.get(contract);

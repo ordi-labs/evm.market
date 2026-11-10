@@ -138,10 +138,11 @@ test("wallet connector only exposes WalletConnect on Base and Polygon with live-
   assert.match(app, /enableInjected: false/);
   assert.match(app, /const appUrl = window\.location\.origin/);
 });
-test("selected collections expose a live listings table including Rarible Polygon data", () => {
-  assert.match(html, /id="marketTableBody"/);
-  assert.match(html, /function renderMarketTable\(contract\)/);
-  assert.match(html, /loadCollectionListings\(COLLECTIONS\[selected\]\.contract\)/);
-  assert.match(html, /function raribleListingPrice\(order\)/);
-  assert.match(html, /listing\.order\?\.marketplace==="rarible"\?"Rarible"/);
+test("English live market dashboard shows the five requested metrics for every collection", () => {
+  for (const label of ["Floor Price", "24h Volume", "Total Volume", "Market Cap*", "Holders"]) assert.ok(html.includes(`<th>${label}</th>`));
+  assert.match(html, /function initializeMarketDashboard\(\)/);
+  assert.match(html, /Object\.entries\(COLLECTIONS\)/);
+  assert.match(html, /collection-stats&contract=/);
+  assert.match(html, /Floor-based estimate/);
+  assert.match(html, /setInterval\(\(\)=>\{if\(document\.visibilityState==="visible"\)refreshMarketDashboard\(\)\},60000\)/);
 });

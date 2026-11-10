@@ -20,12 +20,14 @@ Premium EVM NFT collection explorer for Base and Polygon. This repository is ded
 - Build command: none; output directory: repository root (`.`)
 - Configure `ETHEREUM_API` as a Cloudflare Pages secret for Base-compatible HTTPS RPC reads. `/api/rpc` checks for Base mainnet and permits only its configured methods; it never exposes the endpoint to the browser.
 - Polygon NFT browsing and ownership checks use Alchemy's Polygon mainnet NFT/RPC endpoints. Configure `ALCHEMY_API_KEY` (or `ALCHEMY_API`) as a Pages secret; alternatively, set `POLYGON_RPC` to an HTTPS Polygon mainnet JSON-RPC endpoint. The `/api/polygon-rpc` route checks chain ID 137 and allows only read methods; transaction submission remains in the connected wallet.
-- `OPENSEA_API_KEY` must remain a Cloudflare Pages secret. Never commit API keys.
+- `OPENSEA_API_KEY` and `RARIBLE_API_KEY` must remain Cloudflare Pages secrets for private provider reads. Never commit API keys.
 
 ## Functionality
 Responsive collection browsing, contract allowlisting, search, cursor pagination, collection-wide live marketplace tables, live OpenSea ETH/WETH minimum/maximum price filtering with ascending/descending price sorting for Base collections, full-collection trait indexing for all nine configured collections, exact wallet ownership checks through ownerOf, WalletConnect-only Reown AppKit, and explicit Base or Polygon network selection. OpenSea provides the Base collection feeds; Alchemy provides the Polygon NodeMonkes feed. NFT cards link to Rarible on Polygon.
 
 ## Marketplace and protocol scope
+The live market dashboard shows one row per collection with floor price, 24-hour volume, total volume, floor-based market-cap estimate, and holder count. Base metrics are read from OpenSea collection stats; NodeMonkes [Polygon] metrics are read from Rarible daily and all-time rankings. The market-cap column is an estimate calculated as floor price × collection supply, not an official provider valuation.
+
 The eight Base collections use OpenSea's Seaport 1.6 listing, offer, fulfillment, and cancellation routes on Base. NodeMonkes [Polygon] is excluded from listing creation and cancellation; it remains readable through Rarible and can use supported offer/purchase flows where available. The API key stays server-side; every approval, signature, purchase, or cancellation is reviewed and authorized by the user's connected wallet.
 
 Rarible provides the Polygon collection and NFT destination, and its active collection listings are shown in the live market table. No OpenSea collection slug has been verified for the Polygon contract, so the site does not fabricate an OpenSea orderbook or listing status. The in-app Buy action relies on OpenSea's live item listing feed; if no supported OpenSea order is returned, the user is directed to Rarible. OpenSea listing and offer creation are separate Seaport actions and remain subject to the provider's support and the wallet's explicit prompts.
