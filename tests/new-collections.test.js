@@ -30,7 +30,7 @@ function signedListingBody(contract) {
 test("the home page selects verified Base collections and reflects the nine-collection supply", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   for (const collection of COLLECTIONS) { assert.ok(html.includes(`data-collection="${collection.key}"`)); assert.ok(html.includes(`contract:"${collection.contract}",slug:"${collection.slug}",network:"base"`)); }
-  assert.match(html, /90,000 ITEMS/); assert.match(html, /<strong>90,000<\/strong><span>Collection supply<\/span>/); assert.match(html, /<strong>09<\/strong><span>Curated collections<\/span>/);
+  assert.match(html, /100,000 ITEMS/); assert.match(html, /<strong>100,000<\/strong><span>Collection supply<\/span>/); assert.match(html, /<strong>10<\/strong><span>Curated collections<\/span>/);
 });
 
 test("both collections have OpenSea NFT feeds, global trait-scan pages, and exact trait filtering", async t => {

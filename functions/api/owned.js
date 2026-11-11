@@ -7,10 +7,11 @@ const BASE_ODDITIES = "0x8b245812b0755b7e0259395beca3e591734660fb";
 const PIXEL_NOMADS = "0x13ef1ea93602873d11a92bc434c8ed580487b2dc";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, NEXUS_LEGENDS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
+const PUNKS_POLYGON = "0xba193df461d83ecb40717d334f30c8b09209a6f4";
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, NEXUS_LEGENDS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON, PUNKS_POLYGON]);
 const BASE_CHAIN_ID = "0x2105";
 const POLYGON_CHAIN_ID = "0x89";
-const networkFor = contract => contract === NODEMONKES_POLYGON ? {slug:"polygon",chainId:POLYGON_CHAIN_ID,rpcHost:"polygon-mainnet",label:"Polygon"} : {slug:"base",chainId:BASE_CHAIN_ID,rpcHost:"base-mainnet",label:"Base"};
+const networkFor = contract => [NODEMONKES_POLYGON, PUNKS_POLYGON].includes(contract) ? {slug:"polygon",chainId:POLYGON_CHAIN_ID,rpcHost:"polygon-mainnet",label:"Polygon"} : {slug:"base",chainId:BASE_CHAIN_ID,rpcHost:"base-mainnet",label:"Base"};
 const OWNER_OF_SELECTOR = "0x6352211e";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 

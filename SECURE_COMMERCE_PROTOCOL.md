@@ -2,7 +2,7 @@
 
 ## Portée
 
-Les quatre collections Base utilisent OpenSea et Seaport 1.6 sur Base mainnet (chain ID `8453` / `0x2105`) : Base Punks (`0xb9110ba3266f4983193c0d5f55c792a94368af28`), NodeMonkes (`0x095b6ae2102094be8b5f06fac27275ddb9a8c70a`), BYTEBEASTS (`0x7325654c657520e30c56a04225a3d9acdf895e55`) et CryptoPunks [Base] (`0x18d91b5597f1a7227d2960945c9a1417f0ff721d`). NodeMonkes [Polygon] (`0xdf264d5da8dfaa41fa2e634afead44935af2ad66`) utilise Seaport 1.6 sur Polygon mainnet (chain ID `137` / `0x89`). Les contrats, réseaux, devises et protocoles sont allowlistés séparément.
+Les quatre collections Base utilisent OpenSea et Seaport 1.6 sur Base mainnet (chain ID `8453` / `0x2105`) : Base Punks (`0xb9110ba3266f4983193c0d5f55c792a94368af28`), NodeMonkes (`0x095b6ae2102094be8b5f06fac27275ddb9a8c70a`), BYTEBEASTS (`0x7325654c657520e30c56a04225a3d9acdf895e55`) et CryptoPunks [Base] (`0x18d91b5597f1a7227d2960945c9a1417f0ff721d`). NodeMonkes [Polygon] (`0xdf264d5da8dfaa41fa2e634afead44935af2ad66`) et Punks [Polygon] (`0xba193df461d83ecb40717d334f30c8b09209a6f4`) utilisent Seaport 1.6 sur Polygon mainnet (chain ID `137` / `0x89`). Les contrats, réseaux, devises et protocoles sont allowlistés séparément.
 
 Le contrat Polygon est présenté via Rarible (`og.rarible.com`). Le site lit désormais les listings actifs de la collection via l’API Rarible quand `RARIBLE_API_KEY` est configurée côté serveur; ces données servent au statut, au filtre et au tri, tandis que l’achat reste un parcours externe Rarible. Aucun slug OpenSea n’étant vérifié pour cette collection, l’application ne prétend pas fournir un carnet OpenSea Polygon. La création de listings/offres Seaport OpenSea est un parcours distinct et reste conditionnée au support de l’API OpenSea pour le token.
 

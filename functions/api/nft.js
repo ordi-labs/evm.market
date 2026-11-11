@@ -7,8 +7,9 @@ const BASE_ODDITIES = "0x8b245812b0755b7e0259395beca3e591734660fb";
 const PIXEL_NOMADS = "0x13ef1ea93602873d11a92bc434c8ed580487b2dc";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, NEXUS_LEGENDS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
-const NETWORK = contract => contract === NODEMONKES_POLYGON ? "polygon" : "base";
+const PUNKS_POLYGON = "0xba193df461d83ecb40717d334f30c8b09209a6f4";
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, NEXUS_LEGENDS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON, PUNKS_POLYGON]);
+const NETWORK = contract => [NODEMONKES_POLYGON, PUNKS_POLYGON].includes(contract) ? "polygon" : "base";
 const json = (data, status = 200, forceRefresh = false) => new Response(JSON.stringify(data), {status, headers: {"content-type":"application/json; charset=utf-8","cache-control":forceRefresh ? "no-store, no-cache, must-revalidate, max-age=0" : "public, max-age=15, s-maxage=30","pragma":forceRefresh ? "no-cache" : "","x-content-type-options":"nosniff","access-control-allow-origin":"*"}});
 const text = value => typeof value === "string" ? value : "";
 function ownerAddress(nft) {
@@ -69,7 +70,7 @@ export async function onRequestGet({request, env}) {
   const contract = (url.searchParams.get("contract") || "").toLowerCase();
   const tokenId = (url.searchParams.get("tokenId") || "").trim();
   const forceOpenSea = url.searchParams.get("fallback") === "1";
-  const preferOpenSea = contract === BYTEBEASTS || contract === NEXUS_LEGENDS || contract === NEON_RELICS || contract === BASE_ODDITIES || contract === PIXEL_NOMADS || contract === CRYPTOPUNKS_BASE || (forceOpenSea && contract !== NODEMONKES_POLYGON);
+  const preferOpenSea = contract === PUNKS_POLYGON || contract === BYTEBEASTS || contract === NEXUS_LEGENDS || contract === NEON_RELICS || contract === BASE_ODDITIES || contract === PIXEL_NOMADS || contract === CRYPTOPUNKS_BASE || (forceOpenSea && contract !== NODEMONKES_POLYGON);
   if (!ALLOWED.has(contract)) return json({error:"Unsupported collection contract."}, 400, forceOpenSea);
   if (!tokenId || tokenId.length > 100 || !/^[0-9]+$/.test(tokenId)) return json({error:"A numeric tokenId is required."}, 400, forceOpenSea);
 

@@ -9,6 +9,7 @@ const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
 const BASE_ODDITIES = "0x8b245812b0755b7e0259395beca3e591734660fb";
 const PIXEL_NOMADS = "0x13ef1ea93602873d11a92bc434c8ed580487b2dc";
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
+const PUNKS_POLYGON = "0xba193df461d83ecb40717d334f30c8b09209a6f4";
 const BASE_SEAPORT = "0x0000000000000068f116a894984e2db1123eb395";
 const POLYGON_SEAPORT = "0x0000000000000068f116a894984e2db1123eb395";
 const BASE_WETH = "0x4200000000000000000000000000000000000006";
@@ -25,7 +26,8 @@ const COLLECTIONS = new Map([
   [BASE_ODDITIES, { network: BASE_NETWORK, slug: "base-oddities" }],
   [PIXEL_NOMADS, { network: BASE_NETWORK, slug: "pixel-nomads-783494962" }],
   [CRYPTOPUNKS_BASE, { network: BASE_NETWORK, slug: "cryptopunks-base" }],
-  [NODEMONKES_POLYGON, { network: POLYGON_NETWORK, slug: null }]
+  [NODEMONKES_POLYGON, { network: POLYGON_NETWORK, slug: null }],
+  [PUNKS_POLYGON, { network: POLYGON_NETWORK, slug: "punks-pol" }]
 ]);
 const OPENSEA_API = "https://api.opensea.io/api/v2";
 const RARIBLE_API = "https://api.rarible.org/v0.1";
@@ -242,7 +244,7 @@ function decimalAmountToUnits(value) {
 function validateSignedOrder(body, asset, side, env) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A signed order object is required.");
   const { contract, tokenId, network } = asset;
-  if (side === "listing" && network.chain === "polygon") throw new Error("Listing and unlisting are disabled for NodeMonkes Polygon.");
+  if (side === "listing" && contract === NODEMONKES_POLYGON) throw new Error("Listing and unlisting are disabled for NodeMonkes Polygon.");
   const parameters = body.parameters;
   const signature = body.signature;
   const protocolAddress = String(body.protocol_address || body.protocolAddress || "").toLowerCase();
@@ -353,7 +355,7 @@ function listingPriceCurrency(value, network) {
 
 function validateListingActionsRequest(body, asset) {
   const network = asset.network;
-  if (network.chain === "polygon") throw new Error("Listing and unlisting are disabled for NodeMonkes Polygon.");
+  if (asset.contract === NODEMONKES_POLYGON) throw new Error("Listing and unlisting are disabled for NodeMonkes Polygon.");
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A listing request object is required.");
   const address = String(body.address || "").trim();
   if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new Error("A valid connected seller wallet address is required.");
@@ -411,8 +413,8 @@ function validateOfferActionsRequest(body, asset) {
   return { address, item: openSeaItem, quantity: 1, price: { currency: network.weth, amount }, end_time: endTime, use_creator_fee: false };
 }
 
-function validateCancellationRequest(body, network, env) {
-  if (network.chain === "polygon") throw new Error("Listing and unlisting are disabled for NodeMonkes Polygon.");
+function validateCancellationRequest(body, network, env, contract) {
+  if (contract === NODEMONKES_POLYGON) throw new Error("Listing and unlisting are disabled for NodeMonkes Polygon.");
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("A cancellation request object is required.");
   const address = String(body.address || "").trim();
   const orderHash = String(body.order_hash || body.orderHash || "").trim();
@@ -461,7 +463,7 @@ export async function onRequest({ request, env }) {
     const totalSupply = 10000;
     const statsCurrency = value => {
       const currency = String(value || "").trim();
-      return contract === NODEMONKES_POLYGON && ["ETH", "MATIC", "POL"].includes(currency.toUpperCase()) ? "POL" : currency;
+      return collection.network.chain === "polygon" && ["ETH", "MATIC", "POL"].includes(currency.toUpperCase()) ? "POL" : currency;
     };
     let source = "opensea";
     if (contract === NODEMONKES_POLYGON && (!Number.isFinite(floorValue) || !floorCurrency)) {
@@ -567,7 +569,7 @@ export async function onRequest({ request, env }) {
     let body;
     try { body = await request.json(); } catch { return json({ error: "Request body must be valid JSON." }, 400); }
     let cancellation;
-    try { cancellation = validateCancellationRequest(body, asset.network, env); }
+    try { cancellation = validateCancellationRequest(body, asset.network, env, asset.contract); }
     catch (error) { return json({ error: error.message }, 400); }
     const orderPath = "/orders/chain/" + asset.network.chain + "/protocol/" + cancellation.protocolAddress + "/" + cancellation.orderHash;
     const orderResponse = await openSeaFetch(orderPath, env);

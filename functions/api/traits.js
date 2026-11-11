@@ -1,4 +1,5 @@
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
+const PUNKS_POLYGON = "0xba193df461d83ecb40717d334f30c8b09209a6f4";
 const COLLECTIONS = new Map([
   ["0xb9110ba3266f4983193c0d5f55c792a94368af28", "punks-base-1"],
   ["0x095b6ae2102094be8b5f06fac27275ddb9a8c70a", "nodemonkes"],
@@ -7,7 +8,8 @@ const COLLECTIONS = new Map([
   ["0x64d94e792076da8df31d06e15e7ab4e152999c06", "neon-relics-567749795"],
   ["0x8b245812b0755b7e0259395beca3e591734660fb", "base-oddities"],
   ["0x13ef1ea93602873d11a92bc434c8ed580487b2dc", "pixel-nomads-783494962"],
-  ["0x18d91b5597f1a7227d2960945c9a1417f0ff721d", "cryptopunks-base"]
+  ["0x18d91b5597f1a7227d2960945c9a1417f0ff721d", "cryptopunks-base"],
+  [PUNKS_POLYGON, "punks-pol"]
 ]);
 const API = "https://api.opensea.io/api/v2";
 function json(data, status = 200, headers = {}) {
@@ -56,7 +58,7 @@ export async function onRequestGet({request, env}) {
       const response = await fetch(API + "/nfts/batch", {
         method: "POST",
         headers: {accept: "application/json", "content-type": "application/json", "x-api-key": apiKey},
-        body: JSON.stringify({identifiers: tokenIds.map(token_id => ({chain: "base", contract_address: contract, token_id}))})
+        body: JSON.stringify({identifiers: tokenIds.map(token_id => ({chain: contract === PUNKS_POLYGON ? "polygon" : "base", contract_address: contract, token_id}))})
       });
       const data = await parseResponse(response);
       if (!response.ok) return errorResponse(response, data);

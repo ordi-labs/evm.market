@@ -1,14 +1,16 @@
 const PUNKS = "0xb9110ba3266f4983193c0d5f55c792a94368af28";
 const NODEMONKES = "0x095b6ae2102094be8b5f06fac27275ddb9a8c70a";
 const NODEMONKES_POLYGON = "0xdf264d5da8dfaa41fa2e634afead44935af2ad66";
+const PUNKS_POLYGON = "0xba193df461d83ecb40717d334f30c8b09209a6f4";
+const POLYGON_OPEN_SEA = new Set([NODEMONKES_POLYGON, PUNKS_POLYGON]);
 const BYTEBEASTS = "0x7325654c657520e30c56a04225a3d9acdf895e55";
 const NEXUS_LEGENDS = "0x353a98c65b427294412fae0187e551698eb1c8d6";
 const NEON_RELICS = "0x64d94e792076da8df31d06e15e7ab4e152999c06";
 const CRYPTOPUNKS_BASE = "0x18d91b5597f1a7227d2960945c9a1417f0ff721d";
 const BASE_ODDITIES = "0x8b245812b0755b7e0259395beca3e591734660fb";
 const PIXEL_NOMADS = "0x13ef1ea93602873d11a92bc434c8ed580487b2dc";
-const COLLECTION_SLUGS = new Map([[PUNKS,"punks-base-1"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[NEXUS_LEGENDS,"nexus-legends-603687376"],[NEON_RELICS,"neon-relics-567749795"],[BASE_ODDITIES,"base-oddities"],[PIXEL_NOMADS,"pixel-nomads-783494962"],[CRYPTOPUNKS_BASE,"cryptopunks-base"]]);
-const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, NEXUS_LEGENDS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON]);
+const COLLECTION_SLUGS = new Map([[PUNKS,"punks-base-1"],[NODEMONKES,"nodemonkes"],[BYTEBEASTS,"bytebeasts-base"],[NEXUS_LEGENDS,"nexus-legends-603687376"],[NEON_RELICS,"neon-relics-567749795"],[BASE_ODDITIES,"base-oddities"],[PIXEL_NOMADS,"pixel-nomads-783494962"],[CRYPTOPUNKS_BASE,"cryptopunks-base"],[PUNKS_POLYGON,"punks-pol"]]);
+const ALLOWED = new Set([PUNKS, NODEMONKES, BYTEBEASTS, NEXUS_LEGENDS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE, NODEMONKES_POLYGON, PUNKS_POLYGON]);
 const OPENSEA_PRIMARY = new Set([BYTEBEASTS, NEXUS_LEGENDS, NEON_RELICS, BASE_ODDITIES, PIXEL_NOMADS, CRYPTOPUNKS_BASE]);
 
 const json = (data, status = 200, forceRefresh = false) => {
@@ -289,8 +291,8 @@ export async function onRequestGet({request, env}) {
   const openSeaKey = env.OPENSEA_API_KEY || env.OPENSEA_API;
   const isOpenSeaCursor = Boolean(next && next.startsWith("os_"));
   const isPolygonCursor = Boolean(next && next.startsWith("pg_"));
-  if (contract === NODEMONKES_POLYGON && next && !(scanTraits ? isOpenSeaCursor : isPolygonCursor)) return json({error:"Invalid Polygon pagination cursor."}, 400, forceRefresh);
-  if (contract !== NODEMONKES_POLYGON && isPolygonCursor) return json({error:"Invalid collection pagination cursor."}, 400, forceRefresh);
+  if (POLYGON_OPEN_SEA.has(contract) && next && !(scanTraits ? isOpenSeaCursor : isPolygonCursor)) return json({error:"Invalid Polygon pagination cursor."}, 400, forceRefresh);
+  if (!POLYGON_OPEN_SEA.has(contract) && isPolygonCursor) return json({error:"Invalid collection pagination cursor."}, 400, forceRefresh);
   let openSeaCursor = null;
   let polygonCursor = null;
   try {
@@ -302,11 +304,11 @@ export async function onRequestGet({request, env}) {
     try { polygonCursor = decodePolygonCursor(next); }
     catch { return json({error:"Invalid Polygon pagination cursor."}, 400, forceRefresh); }
   }
-  if (scanTraits && nextProvided && contract !== NODEMONKES_POLYGON && !openSeaCursor) {
+  if (scanTraits && nextProvided && !POLYGON_OPEN_SEA.has(contract) && !openSeaCursor) {
     return json({error:"Invalid collection scan cursor."}, 400, true);
   }
 
-  if (scanTraits && contract === NODEMONKES_POLYGON) {
+  if (scanTraits && POLYGON_OPEN_SEA.has(contract)) {
     if (openSeaKey) {
       try {
         const result = await fetchOpenSea({contract,chain:"polygon",limit,cursor:openSeaCursor,apiKey:openSeaKey,forceRefresh:true});
@@ -361,7 +363,7 @@ export async function onRequestGet({request, env}) {
 
   // NodeMonkes Polygon uses OpenSea as the live source when OPENSEA_API_KEY is configured.
   // Alchemy remains a compatibility fallback for existing deployments.
-  if (contract === NODEMONKES_POLYGON) {
+  if (POLYGON_OPEN_SEA.has(contract)) {
     if (openSeaKey && !isPolygonCursor) {
       try {
         const result = await fetchOpenSea({contract,chain:"polygon",limit,cursor:isOpenSeaCursor?openSeaCursor:null,apiKey:openSeaKey,forceRefresh:true});

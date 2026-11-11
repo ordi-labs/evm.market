@@ -12,6 +12,7 @@ Premium EVM NFT collection explorer for Base and Polygon. This repository is ded
 - Pixel Nomads — Base: `0x13ef1ea93602873d11a92bc434c8ed580487b2dc` (`pixel-nomads-783494962`)
 - CryptoPunks [Base] — Base: `0x18d91b5597f1a7227d2960945c9a1417f0ff721d` (`cryptopunks-base`)
 - NodeMonkes [Polygon] — Polygon: `0xdf264d5da8dfaa41fa2e634afead44935af2ad66` (Rarible collection)
+- Punks [Polygon] — Polygon: `0xba193df461d83ecb40717d334f30c8b09209a6f4` (`punks-pol`), POL and WETH
 
 ## Cloudflare Pages
 - Project: `evm-market-premium`
@@ -23,7 +24,7 @@ Premium EVM NFT collection explorer for Base and Polygon. This repository is ded
 - `OPENSEA_API_KEY` and `RARIBLE_API_KEY` must remain Cloudflare Pages secrets for private provider reads. Never commit API keys.
 
 ## Functionality
-Responsive collection browsing, contract allowlisting, search, cursor pagination, collection-wide live marketplace tables, live OpenSea ETH/WETH minimum/maximum price filtering with ascending/descending price sorting for Base collections, full-collection trait indexing for all nine configured collections, exact wallet ownership checks through ownerOf, Reown AppKit's WalletConnect wallet directory with EIP-6963/injected-wallet support and multi-wallet manager, and explicit Base or Polygon network selection. OpenSea provides the Base collection feeds; Alchemy provides the Polygon NodeMonkes feed. NFT cards link to Rarible on Polygon.
+Responsive collection browsing, contract allowlisting, search, cursor pagination, collection-wide live marketplace tables, live OpenSea ETH/WETH minimum/maximum price filtering with ascending/descending price sorting for Base collections, full-collection trait indexing for all ten configured collections, exact wallet ownership checks through ownerOf, Reown AppKit's WalletConnect wallet directory with EIP-6963/injected-wallet support and multi-wallet manager, and explicit Base or Polygon network selection. OpenSea provides the Base collection feeds; Alchemy provides the Polygon NodeMonkes feed. NFT cards link to Rarible on Polygon.
 
 The AppKit configuration sets `features.multiWallet: true` as a local fallback and exposes `Manage wallets` through `ProfileWallets`. For production, enable the `multi_wallet` capability for the same Project ID in the Reown Dashboard; when remote configuration is available, Reown intentionally overrides local feature values.
 
