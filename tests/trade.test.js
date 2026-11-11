@@ -664,15 +664,21 @@ function polygonSignedOrderBody(side = "listing", currency = side === "listing" 
   return body;
 }
 
-test("rejects Polygon listing actions because NodeMonkes Polygon is not listable", async () => {
-  const response = await onRequest({ request: request("listing-actions", {
+test("accepts Polygon listing actions for owned NFTs", async t => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    assert.ok(String(url).endsWith("/api/v2/listings/actions"));
+    const payload = JSON.parse(init.body);
+    assert.equal(payload.items[0].chain, "polygon");
+    return new Response(JSON.stringify({steps: []}), {status: 200});
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const response = await onRequest({request: request("listing-actions", {
     address: "0x1111111111111111111111111111111111111111",
-    items: [{ nft_id: "polygon/" + POLYGON_CONTRACT + "/1", quantity: 1, price: { currency: "MATIC", amount: "0.05" }, end_time: futureIso(6) }]
-  }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
-  assert.equal(response.status, 400);
-  assert.match((await response.json()).error, /disabled for NodeMonkes Polygon/);
+    items: [{nft_id: "polygon/" + POLYGON_CONTRACT + "/1", quantity: 1, price: {currency: "MATIC", amount: "0.05"}, end_time: futureIso(6)}]
+  }, {contract: POLYGON_CONTRACT}), env: {OPENSEA_API_KEY: "test-key"}});
+  assert.equal(response.status, 200);
 });
-
 test("builds Polygon offer actions with Polygon chain, NFT id and canonical Polygon WETH", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -795,14 +801,13 @@ test("uses Polygon WETH for WETH listing fulfillment instead of native currency"
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test("rejects Polygon unlisting because NodeMonkes Polygon is not listable", async () => {
-  const response = await onRequest({ request: request("cancel-actions", {
+test("keeps external NodeMonkes Polygon unlisting protected", async () => {
+  const response = await onRequest({request: request("cancel-actions", {
     address: "0x1111111111111111111111111111111111111111", order_hash: HASH, protocol_address: SEAPORT
-  }, { contract: POLYGON_CONTRACT }), env: { OPENSEA_API_KEY: "test-key" } });
+  }, {contract: POLYGON_CONTRACT}), env: {OPENSEA_API_KEY: "test-key"}});
   assert.equal(response.status, 400);
-  assert.match((await response.json()).error, /disabled for NodeMonkes Polygon/);
+  assert.match((await response.json()).error, /external NodeMonkes Polygon/);
 });
-
 test("serves normalized OpenSea floor, 24h volume, total volume, holders and floor-cap estimate", async t => {
   const originalFetch = globalThis.fetch; let requested;
   globalThis.fetch = async url => { requested = new URL(String(url)); return new Response(JSON.stringify({

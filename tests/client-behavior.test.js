@@ -149,7 +149,7 @@ test("CryptoPunks [Base], Nexus//Legends and NodeMonkes Polygon are selectable w
   assert.match(html, /name:"CryptoPunks \[Base\]",contract:"0x18d91b5597f1a7227d2960945c9a1417f0ff721d",slug:"cryptopunks-base",network:"base"/);
   assert.match(html, /data-collection="nodemonkespolygon"/);
   assert.match(html, /name:"NodeMonkes \[Polygon\]",contract:"0xdf264d5da8dfaa41fa2e634afead44935af2ad66",slug:"",network:"polygon"/);
-  assert.match(html, /Nine collections/);
+  assert.match(html, /Ten collections/);
   assert.match(html, /data-collection="neonrelics"/);
   assert.match(html, /name:"Neon Relics",contract:"0x64d94e792076da8df31d06e15e7ab4e152999c06",slug:"",network:"base"/);
   assert.match(html, /usesExternalMarketplace/);
@@ -185,16 +185,16 @@ test("live price bounds validate empty, one-sided, reversed and negative ranges"
   assert.equal(parsePriceRange("-0.1", "1").valid, false);
 });
 
-test("live price controls load the collection-wide feed and remain Base-only", () => {
+test("live price controls load the collection-wide feed and support Base and Polygon", () => {
   assert.match(html, /id="priceMinFilter" class="price-input" type="number" min="0" step="any"/);
   assert.match(html, /id="priceMaxFilter" class="price-input" type="number" min="0" step="any"/);
   assert.match(html, /priceRangeActive&&priceRange\.valid/);
-  assert.match(html, /priceMinFilter"\)\.disabled=polygon/);
+  assert.match(html, /priceMinFilter"\)\.disabled=!priceFiltersEnabled/);
   assert.match(html, /renderItems\.push\(\{token_id:String\(id\),name:"Token #"\+String\(id\),metadata:\{\}\}\)/);
 });
 
-test("enables owner listing controls for Base collections and excludes NodeMonkes Polygon", () => {
-  assert.match(html, /function supportsListingActions\(contract\)\{return !isPolygonCollection\(contract\)\}/);
+test("enables owner listing controls for all Base and Polygon collections", () => {
+  assert.match(html, /function supportsListingActions\(contract\)\{return Boolean\(String\(contract\|\|\"\"\)\.toLowerCase\(\)\)\}/);
   assert.match(html, /function loadWalletListings\(contract,id\)/);
   assert.match(html, /Unlist my Seaport listing/);
   assert.match(html, /owner===true&&supportsListingActions\(contract\)/);

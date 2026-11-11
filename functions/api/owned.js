@@ -104,8 +104,8 @@ function normalizeOwnedNft(nft, contract) {
       attributes: Array.isArray(attributes) ? attributes : []
     },
     verifiedOwner: true,
-    opensea_url: contract === NODEMONKES_POLYGON
-      ? "https://og.rarible.com/token/polygon/" + contract + ":" + encodeURIComponent(tokenId)
+    opensea_url: [NODEMONKES_POLYGON, PUNKS_POLYGON].includes(contract)
+      ? "https://opensea.io/assets/polygon/" + contract + "/" + encodeURIComponent(tokenId)
       : "https://opensea.io/assets/base/" + contract + "/" + encodeURIComponent(tokenId)
   };
 }
